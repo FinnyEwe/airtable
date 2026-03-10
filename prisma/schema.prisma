@@ -8,6 +8,8 @@ generator client {
 
 datasource db {
     provider = "sqlite"
+    url = env("DATABASE_URL")
+
 }
 
 model Base {
@@ -16,76 +18,91 @@ model Base {
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
     createdById String
-    createdBy   User     @relation(fields: [createdById], references: [id])
+    createdBy   User     @relation("BaseCreatedBy", fields: [createdById], references: [id])
     tables      Table[]
 }
 
 model Table {
-    id        String   @id @default(cuid())
-    name      String
-    order     Int      @default(0)
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    baseId    String
-    base      Base     @relation(fields: [baseId], references: [id], onDelete: Cascade)
-    fields    Field[]
-    records   Record[]
-    views     View[]
+    id          String   @id @default(cuid())
+    name        String
+    order       Int      @default(0)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+    baseId      String
+    base        Base     @relation(fields: [baseId], references: [id], onDelete: Cascade)
+    createdById String
+    createdBy   User     @relation("TableCreatedBy", fields: [createdById], references: [id])
+    columns     Column[]
+    rows        Row[]
+    views       View[]
 }
 
-model Field {
-    id        String   @id @default(cuid())
-    name      String
-    type      String   // "text" | "number" | "boolean" | "date" | "select" | "multiSelect" | "email" | "url"
-    order     Int      @default(0)
-    config    String?  // JSON: e.g. { "options": ["Todo","In Progress","Done"] } for select fields
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    tableId   String
-    table     Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
-    cells     Cell[]
+model Column {
+    id          String   @id @default(cuid())
+    name        String
+    type        String 
+    order       Int      @default(0)
+    config      String?  
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+    tableId     String
+    table       Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+    createdById String
+    createdBy   User     @relation("ColumnCreatedBy", fields: [createdById], references: [id])
+    cells       Cell[]
 }
 
-model Record {
-    id        String   @id @default(cuid())
-    order     Int      @default(0)
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    tableId   String
-    table     Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
-    cells     Cell[]
+model Row {
+    id          String   @id @default(cuid())
+    order       Int      @default(0)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+    tableId     String
+    table       Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+    createdById String
+    createdBy   User     @relation("RowCreatedBy", fields: [createdById], references: [id])
+    cells       Cell[]
 }
 
 model Cell {
-    id       String  @id @default(cuid())
-    value    String? // All values serialized as strings; deserialize based on Field.type
-    recordId String
-    record   Record  @relation(fields: [recordId], references: [id], onDelete: Cascade)
-    fieldId  String
-    field    Field   @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+    id        String   @id @default(cuid())
+    value     String?
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    rowId     String
+    row       Row      @relation(fields: [rowId], references: [id], onDelete: Cascade)
+    columnId  String
+    column    Column   @relation(fields: [columnId], references: [id], onDelete: Cascade)
 
-    @@unique([recordId, fieldId])
+    @@unique([rowId, columnId])
 }
 
 model View {
-    id        String   @id @default(cuid())
-    name      String
-    type      String   // "grid" | "kanban" | "gallery" | "calendar"
-    order     Int      @default(0)
-    config    String?  // JSON: filters, sorts, hidden fields, groupBy, etc.
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    tableId   String
-    table     Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+    id          String   @id @default(cuid())
+    name        String
+    type        String   
+    order       Int      @default(0)
+    config      String? 
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+    tableId     String
+    table       Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+    createdById String
+    createdBy   User     @relation("ViewCreatedBy", fields: [createdById], references: [id])
 }
-
 
 model User {
-    id            String    @id @default(cuid())
-    name          String?
-    email         String?   @unique
-    emailVerified DateTime?
-    image         String?
-    bases         Base[]
+    id             String   @id @default(cuid())
+    name           String
+    email          String   @unique
+    hashedPassword String?
+    image          String?
+    role           String   @default("member")
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
+    bases          Base[]   @relation("BaseCreatedBy")
+    tables         Table[]  @relation("TableCreatedBy")
+    columns        Column[] @relation("ColumnCreatedBy")
+    rows           Row[]    @relation("RowCreatedBy")
+    views          View[]   @relation("ViewCreatedBy")
 }
-
