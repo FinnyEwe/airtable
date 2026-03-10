@@ -8,52 +8,77 @@ generator client {
 
 datasource db {
     provider = "sqlite"
-    // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-    // Further reading:
-    // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-    // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
-    url      = env("DATABASE_URL")
 }
 
-model Post {
-    id        Int      @id @default(autoincrement())
+model Base {
+    id          String   @id @default(cuid())
+    name        String
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+    createdById String
+    createdBy   User     @relation(fields: [createdById], references: [id])
+    tables      Table[]
+}
+
+model Table {
+    id        String   @id @default(cuid())
     name      String
+    order     Int      @default(0)
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
-
-    createdBy   User   @relation(fields: [createdById], references: [id])
-    createdById String
-
-    @@index([name])
+    baseId    String
+    base      Base     @relation(fields: [baseId], references: [id], onDelete: Cascade)
+    fields    Field[]
+    records   Record[]
+    views     View[]
 }
 
-// Necessary for Next auth
-model Account {
-    id                       String  @id @default(cuid())
-    userId                   String
-    type                     String
-    provider                 String
-    providerAccountId        String
-    refresh_token            String? // @db.Text
-    access_token             String? // @db.Text
-    expires_at               Int?
-    token_type               String?
-    scope                    String?
-    id_token                 String? // @db.Text
-    session_state            String?
-    user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-    refresh_token_expires_in Int?
-
-    @@unique([provider, providerAccountId])
+model Field {
+    id        String   @id @default(cuid())
+    name      String
+    type      String   // "text" | "number" | "boolean" | "date" | "select" | "multiSelect" | "email" | "url"
+    order     Int      @default(0)
+    config    String?  // JSON: e.g. { "options": ["Todo","In Progress","Done"] } for select fields
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    tableId   String
+    table     Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+    cells     Cell[]
 }
 
-model Session {
-    id           String   @id @default(cuid())
-    sessionToken String   @unique
-    userId       String
-    expires      DateTime
-    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model Record {
+    id        String   @id @default(cuid())
+    order     Int      @default(0)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    tableId   String
+    table     Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+    cells     Cell[]
 }
+
+model Cell {
+    id       String  @id @default(cuid())
+    value    String? // All values serialized as strings; deserialize based on Field.type
+    recordId String
+    record   Record  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+    fieldId  String
+    field    Field   @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+    @@unique([recordId, fieldId])
+}
+
+model View {
+    id        String   @id @default(cuid())
+    name      String
+    type      String   // "grid" | "kanban" | "gallery" | "calendar"
+    order     Int      @default(0)
+    config    String?  // JSON: filters, sorts, hidden fields, groupBy, etc.
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    tableId   String
+    table     Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+}
+
 
 model User {
     id            String    @id @default(cuid())
@@ -61,15 +86,6 @@ model User {
     email         String?   @unique
     emailVerified DateTime?
     image         String?
-    accounts      Account[]
-    sessions      Session[]
-    posts         Post[]
+    bases         Base[]
 }
 
-model VerificationToken {
-    identifier String
-    token      String   @unique
-    expires    DateTime
-
-    @@unique([identifier, token])
-}
