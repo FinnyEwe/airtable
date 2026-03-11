@@ -1,7 +1,9 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
+import { Dropdown } from "~/app/_components/ui/Dropdown";
 
 function ChevronDownIcon() {
   return (
@@ -38,6 +40,21 @@ function ToolsIcon() {
   );
 }
 
+const addOrImportSections = [
+  {
+    heading: "Add a blank table",
+    items: [{ label: "Start from scratch", dividerBelow: true }],
+  },
+  {
+    heading: "Add from other sources",
+    items: [
+      { label: "CSV file" },
+      { label: "Google Sheets" },
+      { label: "Microsoft Excel" },
+    ],
+  },
+];
+
 export function TableTabs() {
   const params = useParams<{ baseId: string; tableId?: string }>();
   const router = useRouter();
@@ -47,6 +64,8 @@ export function TableTabs() {
   );
 
   const activeTableId = params.tableId ?? tables[0]?.id ?? "";
+  const [addOpen, setAddOpen] = useState(false);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div className="flex h-[37px] shrink-0 items-stretch border-b border-gray-200 bg-[#f0ede9] pr-2">
@@ -74,10 +93,21 @@ export function TableTabs() {
       </div>
 
       {/* Add or import */}
-      <button className="ml-1 flex items-center gap-1 rounded px-2.5 py-1 text-xs text-gray-500 hover:bg-black/5">
+      <button
+        ref={addButtonRef}
+        onClick={() => setAddOpen((v) => !v)}
+        className="ml-1 flex items-center gap-1 rounded px-2.5 py-1 text-xs text-gray-500 hover:bg-black/5"
+      >
         <PlusIcon />
         <span>Add or import</span>
       </button>
+      <Dropdown
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        anchor={addButtonRef.current}
+        sections={addOrImportSections}
+        width={240}
+      />
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -91,3 +121,4 @@ export function TableTabs() {
     </div>
   );
 }
+

@@ -4,6 +4,8 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log("Cleaning up old seed data...");
+  await prisma.viewFilter.deleteMany();
+  await prisma.viewSort.deleteMany();
   await prisma.cell.deleteMany();
   await prisma.row.deleteMany();
   await prisma.column.deleteMany();
@@ -38,9 +40,24 @@ async function main() {
     prisma.column.create({ data: { name: "Priority", type: "select", order: 4, tableId: tblTasks.id, createdById: user.id, config: JSON.stringify({ options: ["Low", "Medium", "High", "Critical"] }) } }),
   ]);
 
-  await Promise.all([
+  // Tasks views
+  const [viewAllTasks, , viewActiveTasks] = await Promise.all([
     prisma.view.create({ data: { name: "All Tasks",    type: "grid",   order: 0, tableId: tblTasks.id, createdById: user.id } }),
     prisma.view.create({ data: { name: "Kanban Board", type: "kanban", order: 1, tableId: tblTasks.id, createdById: user.id, config: JSON.stringify({ groupBy: colTasksStatus.id }) } }),
+    prisma.view.create({ data: { name: "Active Tasks", type: "grid",   order: 2, tableId: tblTasks.id, createdById: user.id, searchQuery: "" } }),
+    prisma.view.create({ data: { name: "My Tasks",     type: "grid",   order: 3, tableId: tblTasks.id, createdById: user.id, searchQuery: "Alice" } }),
+  ]);
+
+  // All Tasks: sort by Due Date asc (primary), Priority desc (secondary)
+  await Promise.all([
+    prisma.viewSort.create({ data: { viewId: viewAllTasks.id, columnId: colTasksDue.id,      direction: "asc",  order: 0 } }),
+    prisma.viewSort.create({ data: { viewId: viewAllTasks.id, columnId: colTasksPriority.id, direction: "desc", order: 1 } }),
+  ]);
+
+  // Active Tasks: filter Status != Done, sort by Due Date asc
+  await Promise.all([
+    prisma.viewFilter.create({ data: { viewId: viewActiveTasks.id, columnId: colTasksStatus.id, operator: "neq", value: "Done", order: 0 } }),
+    prisma.viewSort.create({   data: { viewId: viewActiveTasks.id, columnId: colTasksDue.id,    direction: "asc", order: 0 } }),
   ]);
 
   const taskData = [
@@ -75,7 +92,20 @@ async function main() {
     prisma.column.create({ data: { name: "Department", type: "select", order: 3, tableId: tblTeam.id, createdById: user.id, config: JSON.stringify({ options: ["Engineering", "Design", "Product", "Marketing"] }) } }),
   ]);
 
-  await prisma.view.create({ data: { name: "All Members", type: "grid", order: 0, tableId: tblTeam.id, createdById: user.id } });
+  // Team views
+  const [viewAllMembers, viewEngineering] = await Promise.all([
+    prisma.view.create({ data: { name: "All Members",  type: "grid", order: 0, tableId: tblTeam.id, createdById: user.id } }),
+    prisma.view.create({ data: { name: "Engineering",  type: "grid", order: 1, tableId: tblTeam.id, createdById: user.id } }),
+  ]);
+
+  // All Members: sort by Name asc
+  await prisma.viewSort.create({ data: { viewId: viewAllMembers.id, columnId: colTeamName.id, direction: "asc", order: 0 } });
+
+  // Engineering: filter Dept = Engineering, sort by Name asc
+  await Promise.all([
+    prisma.viewFilter.create({ data: { viewId: viewEngineering.id, columnId: colTeamDept.id, operator: "eq", value: "Engineering", order: 0 } }),
+    prisma.viewSort.create({   data: { viewId: viewEngineering.id, columnId: colTeamName.id, direction: "asc", order: 0 } }),
+  ]);
 
   const teamData = [
     { name: "Alice",   role: "Senior Engineer",  email: "alice@example.com",   dept: "Engineering" },
@@ -112,10 +142,22 @@ async function main() {
     prisma.column.create({ data: { name: "Author",       type: "text",   order: 4, tableId: tblPosts.id, createdById: user.id } }),
   ]);
 
-  await Promise.all([
+  // Posts views
+  const [viewAllPosts, , , viewPublished] = await Promise.all([
     prisma.view.create({ data: { name: "All Posts", type: "grid",     order: 0, tableId: tblPosts.id, createdById: user.id } }),
     prisma.view.create({ data: { name: "Calendar",  type: "calendar", order: 1, tableId: tblPosts.id, createdById: user.id } }),
     prisma.view.create({ data: { name: "By Stage",  type: "kanban",   order: 2, tableId: tblPosts.id, createdById: user.id, config: JSON.stringify({ groupBy: colPostsStage.id }) } }),
+    prisma.view.create({ data: { name: "Published", type: "grid",     order: 3, tableId: tblPosts.id, createdById: user.id } }),
+    prisma.view.create({ data: { name: "Blog Posts", type: "grid",    order: 4, tableId: tblPosts.id, createdById: user.id, searchQuery: "blog" } }),
+  ]);
+
+  // All Posts: sort by Publish Date asc
+  await prisma.viewSort.create({ data: { viewId: viewAllPosts.id, columnId: colPostsDate.id, direction: "asc", order: 0 } });
+
+  // Published: filter Stage = Published, sort by Publish Date desc
+  await Promise.all([
+    prisma.viewFilter.create({ data: { viewId: viewPublished.id, columnId: colPostsStage.id, operator: "eq", value: "Published", order: 0 } }),
+    prisma.viewSort.create({   data: { viewId: viewPublished.id, columnId: colPostsDate.id,  direction: "desc", order: 0 } }),
   ]);
 
   const postsData = [
@@ -140,9 +182,11 @@ async function main() {
     ]);
   }
 
-  console.log(`✓ user:   ${user.id}`);
-  console.log(`✓ bases:  ${baseProject.id}, ${baseContent.id}`);
-  console.log(`✓ tables: ${tblTasks.id} (${taskData.length} rows)  ${tblTeam.id} (${teamData.length} rows)  ${tblPosts.id} (${postsData.length} rows)`);
+  console.log(`✓ user:    ${user.id}`);
+  console.log(`✓ bases:   ${baseProject.id}, ${baseContent.id}`);
+  console.log(`✓ tables:  ${tblTasks.id} (${taskData.length} rows)  ${tblTeam.id} (${teamData.length} rows)  ${tblPosts.id} (${postsData.length} rows)`);
+  console.log(`✓ filters: Active Tasks (neq Done), Engineering (eq Engineering), Published (eq Published)`);
+  console.log(`✓ sorts:   All Tasks (due asc, priority desc), Active Tasks (due asc), All Members (name asc), Engineering (name asc), All Posts (date asc), Published (date desc)`);
 }
 
 main()

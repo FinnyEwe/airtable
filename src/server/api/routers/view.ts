@@ -1,5 +1,10 @@
 import { createTRPCRouter, publicProcedure } from "../trpc";
-import { getViewsByTableIdSchema, getViewsByTableIdOutputSchema } from "~/types/view";
+import {
+    getViewsByTableIdSchema,
+    getViewsByTableIdOutputSchema,
+    getViewByIdSchema,
+    viewWithConfigSchema,
+} from "~/types/view";
 
 export const viewRouter = createTRPCRouter({
     getByTableId: publicProcedure
@@ -10,5 +15,19 @@ export const viewRouter = createTRPCRouter({
                 where: { tableId: input.tableId },
                 orderBy: { order: "asc" },
             });
+        }),
+
+    getById: publicProcedure
+        .input(getViewByIdSchema)
+        .output(viewWithConfigSchema)
+        .query(async ({ ctx, input }) => {
+            const view = await ctx.db.view.findUniqueOrThrow({
+                where: { id: input.viewId },
+                include: {
+                    filters: { orderBy: { order: "asc" } },
+                    sorts:   { orderBy: { order: "asc" } },
+                },
+            });
+            return view;
         }),
 });

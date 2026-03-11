@@ -8,7 +8,7 @@ interface ViewPageProps {
 
 export default async function ViewPage({ params }: ViewPageProps) {
   const { tableId, viewId } = await params;
-
+  
   return (
     <div className="flex flex-1 overflow-hidden">
       <ViewSidebar />
