@@ -9,8 +9,6 @@ import {
   GearIcon,
   GridViewIcon,
   UsersThreeIcon,
-  UserIcon,
-  LockIcon,
 } from "./icons";
 
 interface ViewSidebarProps {

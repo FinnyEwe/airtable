@@ -12,8 +12,11 @@ export const baseRouter = createTRPCRouter({
     getAll: publicProcedure
         .output(getAllBasesOutputSchema)
         .query(async ({ ctx }) => {
+            if (!ctx.session?.user?.id) {
+                return [];
+            }
             return ctx.db.base.findMany({
-                where: { createdById: ctx.session?.user?.id },
+                where: { createdById: ctx.session.user.id },
                 orderBy: { createdAt: "desc" },
             });
         }),
@@ -40,10 +43,16 @@ export const baseRouter = createTRPCRouter({
         .input(createBaseSchema)
         .output(baseSchema)
         .mutation(async ({ ctx, input }) => {
+            if (!ctx.session?.user?.id) {
+                throw new TRPCError({
+                    code: "UNAUTHORIZED",
+                    message: "You must be logged in to create a base",
+                });
+            }
             return ctx.db.base.create({
                 data: {
                     ...input,
-                    createdById: ctx.session?.user?.id!,
+                    createdById: ctx.session.user.id,
                 },
             });
         }),
