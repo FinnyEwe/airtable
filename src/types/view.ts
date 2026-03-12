@@ -8,6 +8,14 @@ export const getViewByIdSchema = z.object({
     viewId: z.string().cuid(),
 });
 
+export const createViewSchema = z.object({
+    name: z.string(),
+    type: z.string(),
+    tableId: z.string().cuid(),
+    createdById: z.string(),
+});
+
+
 export const viewFilterSchema = z.object({
     id:       z.string().cuid(),
     columnId: z.string().cuid(),

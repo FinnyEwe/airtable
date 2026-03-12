@@ -3,6 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
+import {
+  AirtableWordmark,
+  PlusIcon,
+  TableIcon,
+  SearchIcon,
+  HomeIcon,
+} from "./_components/airtable/icons";
 
 const BASE_COLORS = [
   "bg-blue-500",
@@ -32,54 +39,6 @@ function timeAgo(date: Date) {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   return `${days}d ago`;
-}
-
-function AirtableWordmark() {
-  return (
-    <div className="flex items-center gap-2">
-      <svg width="24" height="24" viewBox="0 0 200 170" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M90.039 12.368 24.079 39.66c-3.664 1.47-3.63 6.67.056 8.086l66.183 25.386a29.5 29.5 0 0 0 21.08-.14l63.606-25.253c3.647-1.447 3.61-6.572-.057-7.966L113.12 12.29a29.5 29.5 0 0 0-23.081.079z" fill="#FFBF00"/>
-        <path d="M105.312 94.282V166.2c0 3.838 3.955 6.386 7.477 4.787l70.87-31.988A5.337 5.337 0 0 0 186.8 134V62.086c0-3.838-3.955-6.387-7.477-4.788l-70.87 31.988a5.337 5.337 0 0 0-3.14 4.996z" fill="#26B5F8"/>
-        <path d="M88.198 97.863 67.02 88.238l-2.382-1.098L17.59 65.788c-3.56-1.642-7.59.906-7.59 4.83V134.1a5.337 5.337 0 0 0 3.25 4.906l71.35 31.822c3.539 1.577 7.506-.974 7.506-4.84V102.87a5.337 5.337 0 0 0-3.909-5.007z" fill="#ED3049"/>
-      </svg>
-      <span className="text-xl font-bold text-gray-800 tracking-tight">Airtable</span>
-    </div>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function TableIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <path d="M3 9h18M9 9v12" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
-    </svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  );
 }
 
 function CreateBaseModal({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string) => void }) {

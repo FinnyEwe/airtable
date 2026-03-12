@@ -11,7 +11,7 @@ export default async function ViewPage({ params }: ViewPageProps) {
   
   return (
     <div className="flex flex-1 overflow-hidden">
-      <ViewSidebar />
+      <ViewSidebar tableId={tableId} viewId={viewId} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <GridToolbar />
         <AirtableGrid tableId={tableId} viewId={viewId} />

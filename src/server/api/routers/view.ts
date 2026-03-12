@@ -4,6 +4,7 @@ import {
     getViewsByTableIdOutputSchema,
     getViewByIdSchema,
     viewWithConfigSchema,
+    createViewSchema,
 } from "~/types/view";
 
 export const viewRouter = createTRPCRouter({
@@ -30,4 +31,19 @@ export const viewRouter = createTRPCRouter({
             });
             return view;
         }),
+
+    create: publicProcedure
+        .input(createViewSchema)
+        .mutation(async ({input, ctx})=> {
+            const view = await ctx.db.view.create({
+                data: {
+                    name: input.name,
+                    type: input.type,
+                    tableId: input.tableId,
+                    createdById: input.createdById,
+                },
+            })
+            return view
+
+        })
 });
