@@ -12,11 +12,7 @@ export const baseRouter = createTRPCRouter({
     getAll: publicProcedure
         .output(getAllBasesOutputSchema)
         .query(async ({ ctx }) => {
-            if (!ctx.session?.user?.id) {
-                return [];
-            }
             return ctx.db.base.findMany({
-                where: { createdById: ctx.session.user.id },
                 orderBy: { createdAt: "desc" },
             });
         }),
