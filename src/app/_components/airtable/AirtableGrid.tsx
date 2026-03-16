@@ -37,10 +37,128 @@ function ColumnHeader({ type, label }: { type: string; label: string }) {
 }
 
 export function AirtableGrid({ tableId, viewId }: { tableId?: string; viewId?: string }) {
+  const utils = api.useUtils();
+  
   const { data, isLoading } = api.tableData.getTableData.useQuery(
     { tableId: tableId!, viewId },
     { enabled: !!tableId },
   );
+
+  const createRow = api.row.create.useMutation({
+    onMutate: async () => {
+      await utils.tableData.getTableData.cancel({ tableId: tableId!, viewId });
+      
+      const previousData = utils.tableData.getTableData.getData({ tableId: tableId!, viewId });
+      
+      utils.tableData.getTableData.setData(
+        { tableId: tableId!, viewId },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            rows: [...old.rows, {
+              id: `temp-${Date.now()}`,
+              order: old.rows.length,
+              cells: []
+            }]
+          };
+        }
+      );
+      
+      return { previousData };
+    },
+    onSuccess: (newRow, _variables, context) => {
+      utils.tableData.getTableData.setData(
+        { tableId: tableId!, viewId },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            rows: old.rows.map(row => 
+              row.id.startsWith('temp-') ? { ...row, id: newRow.id, order: newRow.order } : row
+            )
+          };
+        }
+      );
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousData) {
+        utils.tableData.getTableData.setData(
+          { tableId: tableId!, viewId },
+          context.previousData
+        );
+      }
+    },
+  });
+
+  const createColumn = api.column.create.useMutation({
+    onMutate: async () => {
+      await utils.tableData.getTableData.cancel({ tableId: tableId!, viewId });
+      
+      const previousData = utils.tableData.getTableData.getData({ tableId: tableId!, viewId });
+      
+      utils.tableData.getTableData.setData(
+        { tableId: tableId!, viewId },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            columns: [...old.columns, {
+              id: `temp-${Date.now()}`,
+              name: "Untitled",
+              type: "text",
+              order: old.columns.length,
+              config: null
+            }]
+          };
+        }
+      );
+      
+      return { previousData };
+    },
+    onSuccess: (newColumn, _variables, context) => {
+      utils.tableData.getTableData.setData(
+        { tableId: tableId!, viewId },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            columns: old.columns.map(col => 
+              col.id.startsWith('temp-') 
+                ? { ...col, id: newColumn.id, order: newColumn.order } 
+                : col
+            )
+          };
+        }
+      );
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousData) {
+        utils.tableData.getTableData.setData(
+          { tableId: tableId!, viewId },
+          context.previousData
+        );
+      }
+    },
+  });
+
+  const handleAddRow = () => {
+    if (!tableId) return;
+    createRow.mutate({
+      tableId,
+      createdById: "cmmllv5360000exgzm1wtm336",
+    });
+  };
+
+  const handleAddColumn = () => {
+    if (!tableId) return;
+    createColumn.mutate({
+      name: "Untitled",
+      type: "text",
+      tableId,
+      createdById: "cmmllv5360000exgzm1wtm336",
+    });
+  };
 
   const tableData = useMemo<GridRow[]>(() => {
     if (!data) return [];
@@ -62,8 +180,8 @@ export function AirtableGrid({ tableId, viewId }: { tableId?: string; viewId?: s
         </div>
       ),
       cell: ({ row }) => (
-        <div className="group relative flex h-full w-full items-center">
-          <span className="w-6 text-center text-[11px] text-gray-400">
+        <div className="group relative flex h-full w-full items-center justify-center">
+          <span className="text-center text-[11px] text-gray-400">
             {row.index + 1}
           </span>
           <button className="absolute right-1 hidden h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-200 group-hover:flex">
@@ -119,8 +237,8 @@ export function AirtableGrid({ tableId, viewId }: { tableId?: string; viewId?: s
                   <th
                     key={header.id}
                     className={[
-                      "h-[30px] border-b border-r border-gray-200 bg-[#f8f8f8] px-2 text-left text-[12px] font-normal text-gray-600",
-                      idx === 0 ? "border-l-0" : "",
+                      "h-[30px] border-b border-gray-200 bg-[#f8f8f8] px-2 text-left text-[12px] font-normal text-gray-600",
+                      idx === 0 ? "border-l-0" : "border-r",
                     ].join(" ")}
                     style={{ width: header.column.getSize() }}
                   >
@@ -128,7 +246,11 @@ export function AirtableGrid({ tableId, viewId }: { tableId?: string; viewId?: s
                   </th>
                 ))}
                 <th className="h-[30px] border-b border-r border-gray-200 bg-[#f8f8f8] px-2 text-center">
-                  <button className="flex h-full w-full items-center justify-center text-gray-400 hover:text-gray-600">
+                  <button 
+                    onClick={handleAddColumn}
+                    disabled={createColumn.isPending}
+                    className="flex h-full w-full items-center justify-center text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                  >
                     <PlusIcon />
                   </button>
                 </th>
@@ -143,34 +265,46 @@ export function AirtableGrid({ tableId, viewId }: { tableId?: string; viewId?: s
                   <td
                     key={cell.id}
                     className={[
-                      "h-[32px] border-b border-r border-gray-200 px-2 text-[13px] text-gray-700",
-                      idx === 0 ? "bg-white group-hover:bg-[#f8fbff]" : "",
+                      "h-[32px] border-b border-gray-200 px-2 text-[13px] text-gray-700",
+                      idx === 0 ? "bg-white group-hover:bg-[#f8fbff]" : "border-r",
                     ].join(" ")}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
-                <td className="h-[32px] border-b border-r border-gray-200" />
               </tr>
             ))}
 
             <tr>
-              <td className="h-[32px] border-b border-r border-gray-200 px-2">
-                <button className="flex items-center gap-1.5 text-[12px] text-gray-400 hover:text-gray-600">
+              <td className="h-[32px] border-b border-gray-200 bg-white px-2">
+                <button 
+                  onClick={handleAddRow}
+                  disabled={createRow.isPending}
+                  className="flex h-full w-full items-center justify-center text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                >
                   <PlusIcon />
                 </button>
               </td>
-              <td
-                className="h-[32px] border-b border-gray-200"
-                colSpan={columns.length}
-              />
+              {columns.slice(1).map((col, idx) => (
+                <td
+                  key={col.id}
+                  className={[
+                    "h-[32px] border-b border-gray-200 bg-white",
+                    idx === 0 || idx === columns.length - 2 ? "border-r" : "",
+                  ].join(" ")}
+                />
+              ))}
             </tr>
           </tbody>
         </table>
       </div>
 
       <div className="flex h-[28px] shrink-0 items-center justify-between border-t border-gray-200 bg-white px-3">
-        <button className="flex items-center gap-1 text-[12px] text-gray-500 hover:text-gray-700">
+        <button 
+          onClick={handleAddRow}
+          disabled={createRow.isPending}
+          className="flex items-center gap-1 text-[12px] text-gray-500 hover:text-gray-700 disabled:opacity-50"
+        >
           <PlusIcon />
           <span>Add...</span>
         </button>

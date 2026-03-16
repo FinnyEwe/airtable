@@ -32,9 +32,12 @@ export function ViewSidebar({ tableId, viewId }: ViewSidebarProps) {
     { enabled: !!tableId },
   );
 
+  const utils = api.useUtils()
+
   const createViewMutation = api.view.create.useMutation({
     onSuccess: (newView) => {
       router.push(`/${params.baseId}/${tableId}/${newView.id}`);
+      utils.view.getByTableId.invalidate()
     },
   });
 

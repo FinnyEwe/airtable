@@ -6,21 +6,6 @@ import { api } from "~/trpc/react";
 import { Dropdown } from "~/app/_components/ui/Dropdown";
 import { ChevronDownIcon, PlusIcon, GridIcon, ToolsIcon } from "./icons";
 
-const addOrImportSections = [
-  {
-    heading: "Add a blank table",
-    items: [{ label: "Start from scratch", dividerBelow: true }],
-  },
-  {
-    heading: "Add from other sources",
-    items: [
-      { label: "CSV file" },
-      { label: "Google Sheets" },
-      { label: "Microsoft Excel" },
-    ],
-  },
-];
-
 export function TableTabs() {
   const params = useParams<{ baseId: string; tableId?: string }>();
   const router = useRouter();
@@ -28,6 +13,44 @@ export function TableTabs() {
     { baseId: params.baseId },
     { enabled: !!params.baseId },
   );
+
+  const utils = api.useUtils();
+
+  const createTableMutation = api.table.create.useMutation({
+    onSuccess: async (newTable) => {
+      await utils.table.getByBaseId.invalidate({ baseId: params.baseId });
+      const views = await utils.view.getByTableId.fetch({ tableId: newTable.id });
+      const firstView = views[0];
+      if (firstView) {
+        router.push(`/${params.baseId}/${newTable.id}/${firstView.id}`);
+      } else {
+        router.push(`/${params.baseId}/${newTable.id}`);
+      }
+    },
+  });
+
+  const handleStartFromScratch = () => {
+    createTableMutation.mutate({
+      name: "Untitled",
+      baseId: params.baseId,
+      createdById: "cmmllv5360000exgzm1wtm336",
+    });
+  };
+
+  const addOrImportSections = [
+    {
+      heading: "Add a blank table",
+      items: [{ label: "Start from scratch", dividerBelow: true, onClick: handleStartFromScratch }],
+    },
+    {
+      heading: "Add from other sources",
+      items: [
+        { label: "CSV file" },
+        { label: "Google Sheets" },
+        { label: "Microsoft Excel" },
+      ],
+    },
+  ];
 
   const activeTableId = params.tableId ?? tables[0]?.id ?? "";
   const [addOpen, setAddOpen] = useState(false);

@@ -32,7 +32,8 @@ export function GridToolbar() {
         <ChevronDownIcon />
       </button>
 
-      <div className="mx-1 h-4 w-px bg-gray-200" />
+      {/* Spacer */}
+      <div className="flex-1" />
 
       {/* Toolbar buttons */}
       <div className="flex items-center gap-0.5">
@@ -55,8 +56,7 @@ export function GridToolbar() {
         <span>Share and sync</span>
       </button>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+      <div className="mx-1 h-4 w-px bg-gray-200" />
 
       {/* Search */}
       <button className="flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100">

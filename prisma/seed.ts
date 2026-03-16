@@ -17,7 +17,7 @@ async function main() {
   console.log("Seeding...");
 
   const user = await prisma.user.create({
-    data: { email: "demo@example.com", name: "Demo User" },
+    data: { id: "cmmllv5360000exgzm1wtm336", email: "demo@example.com", name: "Demo User" },
   });
 
   // ─── Base: Project Tracker ──────────────────────────────────────────────────
