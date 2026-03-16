@@ -28,7 +28,14 @@ export interface MenuSection {
 export interface DropdownProps {
   open: boolean;
   onClose: () => void;
-  sections: MenuSection[];
+  /**
+   * Menu sections. Ignored when `content` is provided.
+   */
+  sections?: MenuSection[];
+  /**
+   * Custom content to render instead of sections (e.g. searchable list, custom header).
+   */
+  content?: React.ReactNode;
   /**
    * The trigger element. Pass the same ref you put on your trigger button.
    */
@@ -45,7 +52,8 @@ export interface DropdownProps {
 export function Dropdown({
   open,
   onClose,
-  sections,
+  sections = [],
+  content,
   anchor,
   width = 280,
   maxHeight = 400,
@@ -87,31 +95,37 @@ export function Dropdown({
       {...getFloatingProps()}
       role="dialog"
       tabIndex={-1}
-      className="overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg outline-none"
+      className={
+        content
+          ? "overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg outline-none"
+          : "overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg outline-none"
+      }
     >
-      <ul role="menu" tabIndex={-1} className="p-1">
-        {sections.map((section, sectionIdx) => (
-          <React.Fragment key={sectionIdx}>
-            {section.heading && (
-              <MenuSectionHeading>{section.heading}</MenuSectionHeading>
-            )}
-            {section.items.map((item, itemIdx) => (
-              <MenuItem
-                key={itemIdx}
-                {...item}
-                onClick={() => {
-                  item.onClick?.();
-                  onClose();
-                }}
-              />
-            ))}
-            {sectionIdx < sections.length - 1 &&
-              !sections[sectionIdx]!.items.at(-1)?.dividerBelow && (
-                <MenuDivider />
+      {content ?? (
+        <ul role="menu" tabIndex={-1} className="p-1">
+          {sections.map((section, sectionIdx) => (
+            <React.Fragment key={sectionIdx}>
+              {section.heading && (
+                <MenuSectionHeading>{section.heading}</MenuSectionHeading>
               )}
-          </React.Fragment>
-        ))}
-      </ul>
+              {section.items.map((item, itemIdx) => (
+                <MenuItem
+                  key={itemIdx}
+                  {...item}
+                  onClick={() => {
+                    item.onClick?.();
+                    onClose();
+                  }}
+                />
+              ))}
+              {sectionIdx < sections.length - 1 &&
+                !sections[sectionIdx]!.items.at(-1)?.dividerBelow && (
+                  <MenuDivider />
+                )}
+            </React.Fragment>
+          ))}
+        </ul>
+      )}
     </div>
   );
 

@@ -92,6 +92,7 @@ model View {
     createdBy   User          @relation("ViewCreatedBy", fields: [createdById], references: [id])
     filters     ViewFilter[]
     sorts       ViewSort[]
+    groups      ViewGroup[]
 }
 
 model ViewFilter {
@@ -107,6 +108,17 @@ model ViewFilter {
 }
 
 model ViewSort {
+    id          String   @id @default(cuid())
+    columnId    String
+    direction   String   @default("asc")
+    order       Int      @default(0)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+    viewId      String
+    view        View     @relation(fields: [viewId], references: [id], onDelete: Cascade)
+}
+
+model ViewGroup {
     id          String   @id @default(cuid())
     columnId    String
     direction   String   @default("asc")

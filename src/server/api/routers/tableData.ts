@@ -84,17 +84,21 @@ export const tableDataRouter = createTRPCRouter({
             let viewSorts: ViewSort[]     = [];
             let searchQuery: string | null = null;
 
+            let viewGroups: { columnId: string; direction: string; order: number }[] = [];
+
             if (input.viewId) {
                 const view = await ctx.db.view.findUnique({
                     where: { id: input.viewId },
                     include: {
                         filters: { orderBy: { order: "asc" } },
                         sorts:   { orderBy: { order: "asc" } },
+                        groups:  { orderBy: { order: "asc" } },
                     },
                 });
                 if (view) {
                     viewFilters = view.filters;
                     viewSorts   = view.sorts;
+                    viewGroups  = view.groups;
                     searchQuery = view.searchQuery;
                 }
             }
@@ -144,9 +148,14 @@ export const tableDataRouter = createTRPCRouter({
             }
 
             // Apply sorts in JS (avoids complex SQL on related cells)
-            if (viewSorts.length > 0) {
+            // When groups exist, sort by group columns first, then view sorts
+            const sortOrder = [
+                ...viewGroups.map((g) => ({ columnId: g.columnId, direction: g.direction })),
+                ...viewSorts.map((s) => ({ columnId: s.columnId, direction: s.direction })),
+            ];
+            if (sortOrder.length > 0) {
                 filteredRows.sort((a, b) => {
-                    for (const sort of viewSorts) {
+                    for (const sort of sortOrder) {
                         const aVal = a.cells.find((c) => c.columnId === sort.columnId)?.value ?? "";
                         const bVal = b.cells.find((c) => c.columnId === sort.columnId)?.value ?? "";
                         const cmp = aVal.localeCompare(bVal);
@@ -156,6 +165,6 @@ export const tableDataRouter = createTRPCRouter({
                 });
             }
 
-            return { columns, rows: filteredRows };
+            return { columns, rows: filteredRows, groups: viewGroups };
         }),
 });

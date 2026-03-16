@@ -37,9 +37,16 @@ export const rowSchema = z.object({
 export type Row = z.infer<typeof rowSchema>;
 
 
+export const viewGroupRefSchema = z.object({
+    columnId:  z.string(),
+    direction: z.string(),
+    order:     z.number().int(),
+});
+
 export const getTableDataOutputSchema = z.object({
     columns: z.array(columnSchema),
     rows:    z.array(rowSchema),
+    groups:  z.array(viewGroupRefSchema),
 });
 
 export type GetTableDataOutput = z.infer<typeof getTableDataOutputSchema>;

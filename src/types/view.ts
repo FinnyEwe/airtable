@@ -31,6 +31,21 @@ export const viewSortSchema = z.object({
     order:     z.number().int(),
 });
 
+export const viewGroupSchema = z.object({
+    id:        z.string(),
+    columnId:  z.string().cuid(),
+    direction: z.string(),
+    order:     z.number().int(),
+});
+
+export const updateViewGroupsSchema = z.object({
+    viewId: z.string().cuid(),
+    groups: z.array(z.object({
+        columnId:  z.string().cuid(),
+        direction: z.enum(["asc", "desc"]),
+    })).optional(),
+});
+
 export const viewSchema = z.object({
     id:          z.string().cuid(),
     name:        z.string(),
@@ -47,6 +62,7 @@ export const viewSchema = z.object({
 export const viewWithConfigSchema = viewSchema.extend({
     filters: z.array(viewFilterSchema),
     sorts:   z.array(viewSortSchema),
+    groups:  z.array(viewGroupSchema),
 });
 
 export const getViewsByTableIdOutputSchema = z.array(viewSchema);
@@ -55,6 +71,8 @@ export type GetViewsByTableIdInput  = z.infer<typeof getViewsByTableIdSchema>;
 export type GetViewByIdInput        = z.infer<typeof getViewByIdSchema>;
 export type ViewFilter              = z.infer<typeof viewFilterSchema>;
 export type ViewSort                = z.infer<typeof viewSortSchema>;
+export type ViewGroup               = z.infer<typeof viewGroupSchema>;
+export type UpdateViewGroupsInput   = z.infer<typeof updateViewGroupsSchema>;
 export type View                    = z.infer<typeof viewSchema>;
 export type ViewWithConfig          = z.infer<typeof viewWithConfigSchema>;
 export type GetViewsByTableIdOutput = z.infer<typeof getViewsByTableIdOutputSchema>;

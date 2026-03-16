@@ -57,7 +57,7 @@ export function TableTabs() {
   const addButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="flex h-[37px] shrink-0 items-stretch border-b border-gray-200 bg-[#f0ede9] pr-2">
+    <div className="flex h-[37px] shrink-0 items-stretch border-b border-gray-200 bg-[#e8f0fe] pr-2">
       {/* Table tabs */}
       <div className="flex items-stretch">
         {tables.map((table) => {

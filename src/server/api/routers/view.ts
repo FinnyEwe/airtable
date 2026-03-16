@@ -5,6 +5,7 @@ import {
     getViewByIdSchema,
     viewWithConfigSchema,
     createViewSchema,
+    updateViewGroupsSchema,
 } from "~/types/view";
 
 export const viewRouter = createTRPCRouter({
@@ -27,6 +28,7 @@ export const viewRouter = createTRPCRouter({
                 include: {
                     filters: { orderBy: { order: "asc" } },
                     sorts:   { orderBy: { order: "asc" } },
+                    groups:  { orderBy: { order: "asc" } },
                 },
             });
             return view;
@@ -45,5 +47,31 @@ export const viewRouter = createTRPCRouter({
             })
             return view
 
-        })
+        }),
+
+    updateGroups: publicProcedure
+        .input(updateViewGroupsSchema)
+        .mutation(async ({ ctx, input }) => {
+            await ctx.db.$transaction(async (tx) => {
+                await tx.viewGroup.deleteMany({ where: { viewId: input.viewId } });
+                if (input.groups?.length) {
+                    await tx.viewGroup.createMany({
+                        data: input.groups.map((g, i) => ({
+                            viewId: input.viewId,
+                            columnId: g.columnId,
+                            direction: g.direction,
+                            order: i,
+                        })),
+                    });
+                }
+            });
+            return ctx.db.view.findUniqueOrThrow({
+                where: { id: input.viewId },
+                include: {
+                    filters: { orderBy: { order: "asc" } },
+                    sorts:   { orderBy: { order: "asc" } },
+                    groups:  { orderBy: { order: "asc" } },
+                },
+            });
+        }),
 });

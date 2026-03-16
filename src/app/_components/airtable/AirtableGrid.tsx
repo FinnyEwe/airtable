@@ -6,17 +6,23 @@ import {
   flexRender,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { api } from "~/trpc/react";
 import {
-  CheckboxIcon,
   TextFieldIcon,
   NumberIcon,
   PlusIcon,
-  ExpandRowIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  OverflowIcon,
 } from "./icons";
 
 type GridRow = Record<string, string | null> & { id: string };
+
+type GroupLevel = { columnId: string; direction: string; order: number };
+type DisplayItem =
+  | { type: "groupHeader"; key: string; value: string; count: number; columnId: string; depth: number }
+  | { type: "row"; row: GridRow };
 
 function columnTypeIcon(type: string) {
   switch (type) {
@@ -36,9 +42,56 @@ function ColumnHeader({ type, label }: { type: string; label: string }) {
   );
 }
 
+function buildDisplayItems(
+  rows: GridRow[],
+  groups: GroupLevel[],
+  collapsedKeys: Set<string>,
+  depth = 0,
+  parentKey = ""
+): DisplayItem[] {
+  if (groups.length === 0 || depth >= groups.length) {
+    return rows.map((row) => ({ type: "row", row }));
+  }
+  const col = groups[depth];
+  if (!col) return rows.map((row) => ({ type: "row", row }));
+
+  const partitions = new Map<string, GridRow[]>();
+  for (const row of rows) {
+    const val = (row[col.columnId] ?? "") as string;
+    const key = val || "(empty)";
+    if (!partitions.has(key)) partitions.set(key, []);
+    partitions.get(key)!.push(row);
+  }
+
+  const keys = [...partitions.keys()].sort((a, b) => a.localeCompare(b));
+  if (col.direction === "desc") keys.reverse();
+
+  const result: DisplayItem[] = [];
+  for (const key of keys) {
+    const fullKey = parentKey ? `${parentKey}::${key}` : key;
+    const subRows = partitions.get(key)!;
+    result.push({
+      type: "groupHeader",
+      key: fullKey,
+      value: key,
+      count: subRows.length,
+      columnId: col.columnId,
+      depth,
+    });
+    if (!collapsedKeys.has(fullKey)) {
+      result.push(
+        ...buildDisplayItems(subRows, groups, collapsedKeys, depth + 1, fullKey),
+      );
+    }
+  }
+  return result;
+}
+
 export function AirtableGrid({ tableId, viewId }: { tableId?: string; viewId?: string }) {
   const utils = api.useUtils();
-  
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(new Set());
+
   const { data, isLoading } = api.tableData.getTableData.useQuery(
     { tableId: tableId!, viewId },
     { enabled: !!tableId },
@@ -160,6 +213,30 @@ export function AirtableGrid({ tableId, viewId }: { tableId?: string; viewId?: s
     });
   };
 
+  const handleSelectAll = () => {
+    if (!data) return;
+    if (selectedRows.size === data.rows.length) {
+      setSelectedRows(new Set());
+    } else {
+      setSelectedRows(new Set(data.rows.map(row => row.id)));
+    }
+  };
+
+  const handleRowSelect = (rowId: string) => {
+    setSelectedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(rowId)) {
+        newSet.delete(rowId);
+      } else {
+        newSet.add(rowId);
+      }
+      return newSet;
+    });
+  };
+
+  const isAllSelected = data ? selectedRows.size === data.rows.length && data.rows.length > 0 : false;
+  const isSomeSelected = selectedRows.size > 0 && !isAllSelected;
+
   const tableData = useMemo<GridRow[]>(() => {
     if (!data) return [];
     return data.rows.map((row) => {
@@ -171,28 +248,54 @@ export function AirtableGrid({ tableId, viewId }: { tableId?: string; viewId?: s
     });
   }, [data]);
 
+  const groups = data?.groups ?? [];
+  const displayItems = useMemo<DisplayItem[]>(() => {
+    if (groups.length === 0) {
+      return tableData.map((row) => ({ type: "row" as const, row }));
+    }
+    return buildDisplayItems(tableData, groups, collapsedGroupKeys);
+  }, [tableData, groups, data?.columns, collapsedGroupKeys]);
+
+  const toggleGroupCollapsed = (key: string) => {
+    setCollapsedGroupKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const columns = useMemo<ColumnDef<GridRow>[]>(() => {
-    const rowExpandCol: ColumnDef<GridRow> = {
-      id: "rowExpand",
+    const checkboxCol: ColumnDef<GridRow> = {
+      id: "checkbox",
       header: () => (
-        <div className="flex h-full w-full items-center justify-center">
-          <CheckboxIcon />
-        </div>
+        <button
+          onClick={handleSelectAll}
+          className="flex h-full w-full items-center justify-center rounded hover:bg-gray-100"
+        >
+          <div className="relative h-4 w-4">
+            <input
+              type="checkbox"
+              checked={isAllSelected}
+              onChange={() => {}}
+              className="h-4 w-4 cursor-pointer rounded border-gray-300"
+              style={{
+                accentColor: isAllSelected || isSomeSelected ? "#2563eb" : undefined,
+              }}
+            />
+            {isSomeSelected && !isAllSelected && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="h-2 w-2 bg-blue-600" />
+              </div>
+            )}
+          </div>
+        </button>
       ),
-      cell: ({ row }) => (
-        <div className="group relative flex h-full w-full items-center justify-center">
-          <span className="text-center text-[11px] text-gray-400">
-            {row.index + 1}
-          </span>
-          <button className="absolute right-1 hidden h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-200 group-hover:flex">
-            <ExpandRowIcon />
-          </button>
-        </div>
-      ),
-      size: 68,
+      cell: () => null,
+      size: 48,
     };
 
-    if (!data?.columns.length) return [rowExpandCol];
+    if (!data?.columns.length) return [checkboxCol];
 
     const dataCols: ColumnDef<GridRow>[] = data.columns.map((col) => ({
       id: col.id,
@@ -201,8 +304,8 @@ export function AirtableGrid({ tableId, viewId }: { tableId?: string; viewId?: s
       size: 180,
     }));
 
-    return [rowExpandCol, ...dataCols];
-  }, [data]);
+    return [checkboxCol, ...dataCols];
+  }, [data, selectedRows, isAllSelected, isSomeSelected]);
 
   const table = useReactTable({
     data: tableData,
@@ -239,14 +342,18 @@ export function AirtableGrid({ tableId, viewId }: { tableId?: string; viewId?: s
                     className={[
                       "h-[30px] border-b border-gray-200 bg-[#f8f8f8] px-2 text-left text-[12px] font-normal text-gray-600",
                       idx === 0 ? "border-l-0" : "border-r",
+                      idx === 0 ? "sticky z-10 bg-[#f8f8f8] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" : "",
                     ].join(" ")}
-                    style={{ width: header.column.getSize() }}
+                    style={{
+                      width: header.column.getSize(),
+                      ...(idx === 0 && { left: 0 }),
+                    }}
                   >
                     {flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
-                <th className="h-[30px] border-b border-r border-gray-200 bg-[#f8f8f8] px-2 text-center">
-                  <button 
+                <th className="h-[30px] w-[48px] border-b border-r border-gray-200 bg-[#f8f8f8] px-2 text-center">
+                  <button
                     onClick={handleAddColumn}
                     disabled={createColumn.isPending}
                     className="flex h-full w-full items-center justify-center text-gray-400 hover:text-gray-600 disabled:opacity-50"
@@ -259,41 +366,154 @@ export function AirtableGrid({ tableId, viewId }: { tableId?: string; viewId?: s
           </thead>
 
           <tbody>
-            {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="group hover:bg-[#f8fbff]">
-                {row.getVisibleCells().map((cell, idx) => (
-                  <td
-                    key={cell.id}
-                    className={[
-                      "h-[32px] border-b border-gray-200 px-2 text-[13px] text-gray-700",
-                      idx === 0 ? "bg-white group-hover:bg-[#f8fbff]" : "border-r",
-                    ].join(" ")}
+            {displayItems.map((item) => {
+              if (item.type === "groupHeader") {
+                const col = data?.columns.find((c) => c.id === item.columnId);
+                const isCollapsed = collapsedGroupKeys.has(item.key);
+                return (
+                  <tr
+                    key={item.key}
+                    className="bg-[#f8fafc] hover:bg-[#f1f5f9]"
                   >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    {/* Column 1: chevron (when grouping) - sticky */}
+                    <td
+                      className="sticky left-0 z-10 border-b border-r border-gray-200 bg-[#f8fafc] px-1 py-1 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                      style={{ width: 48 }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleGroupCollapsed(item.key)}
+                        className="flex h-full w-full items-center justify-start pl-1 text-gray-500 hover:text-gray-700"
+                        style={{ paddingLeft: `${item.depth * 16 + 4}px` }}
+                        aria-expanded={!isCollapsed}
+                      >
+                        {isCollapsed ? (
+                          <ChevronRightIcon />
+                        ) : (
+                          <ChevronDownIcon />
+                        )}
+                      </button>
+                    </td>
+                    {/* Data columns: group content in first cell, rest empty */}
+                    {columns.slice(1).map((dataCol, colIndex) => {
+                      const isFirstCell = colIndex === 0;
+                      return (
+                        <td
+                          key={dataCol.id}
+                          className="border-b border-r border-gray-200 px-2 py-1"
+                        >
+                          {isFirstCell ? (
+                            <div className="flex h-full min-h-[40px] items-center gap-2">
+                              <div className="flex min-w-0 flex-1 flex-col justify-center py-1 text-left">
+                                <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wider text-gray-500">
+                                  {col?.name ?? "Field"}
+                                </p>
+                                <span className="text-[14px] font-semibold text-gray-800">
+                                  {item.value}
+                                </span>
+                              </div>
+                              <div className="group/count relative flex h-7 w-7 shrink-0 items-center justify-center">
+                                <span className="text-[12px] font-normal text-gray-500 group-hover/count:hidden">
+                                  {item.count}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="absolute inset-0 hidden items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-600 group-hover/count:flex"
+                                  aria-label="Group options"
+                                >
+                                  <OverflowIcon />
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </td>
+                      );
+                    })}
+                    {/* Add column spacer - stays white so row hover doesn't extend into it */}
+                    <td className="border-b-0 w-[48px] bg-white" />
+                  </tr>
+                );
+              }
+              const row = item.row;
+              const isSelected = selectedRows.has(row.id);
+              return (
+                <tr
+                  key={row.id}
+                  className={[
+                    "group",
+                    isSelected ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-[#f8fbff]",
+                  ].join(" ")}
+                >
+                  {/* Column 1: row number + checkbox on hover - sticky */}
+                  <td
+                    className={[
+                      "sticky left-0 z-10 h-[32px] border-b border-r border-gray-200 px-2 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
+                      isSelected ? "bg-blue-50 group-hover:bg-blue-100" : "bg-white group-hover:bg-[#f8fbff]",
+                    ].join(" ")}
+                    style={{ width: 48 }}
+                  >
+                    <div className="group/idx relative flex h-full w-full items-center justify-start text-left text-[13px] text-gray-700">
+                      <span className="group-hover/idx:hidden">
+                        {tableData.findIndex((r) => r.id === row.id) + 1}
+                      </span>
+                      <button
+                        onClick={() => handleRowSelect(row.id)}
+                        className="absolute left-0 top-1/2 hidden h-full w-full -translate-y-1/2 items-center justify-start pl-0 group-hover/idx:flex"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          className="h-4 w-4 cursor-pointer rounded border-gray-300"
+                          style={{ accentColor: "#2563eb" }}
+                        />
+                      </button>
+                    </div>
                   </td>
-                ))}
-              </tr>
-            ))}
+                  {/* Data columns */}
+                  {columns.slice(1).map((col) => {
+                    const value = row[col.id!];
+                    const isNumber = data?.columns.find((c) => c.id === col.id)?.type === "number";
+                    return (
+                      <td
+                        key={col.id}
+                        className={[
+                          "h-[32px] border-b border-gray-200 px-2 text-[13px] text-gray-700 border-r",
+                          isNumber ? "text-right" : "text-left",
+                        ].join(" ")}
+                      >
+                        {value ?? ""}
+                      </td>
+                    );
+                  })}
+                  {/* Add column spacer - stays white so row hover doesn't extend into it */}
+                  <td className="w-[48px] border-b-0 bg-white" />
+                </tr>
+              );
+            })}
 
+            {/* Ghost row: add row plus in first column (left pane), add column column empty */}
             <tr>
-              <td className="h-[32px] border-b border-gray-200 bg-white px-2">
-                <button 
+              <td className="sticky left-0 z-10 h-[32px] border-b border-r border-gray-200 bg-white px-2 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">
+                <button
                   onClick={handleAddRow}
                   disabled={createRow.isPending}
-                  className="flex h-full w-full items-center justify-center text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                  className="flex h-full w-full items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
+                  aria-label="Insert new record in grid"
                 >
                   <PlusIcon />
                 </button>
               </td>
-              {columns.slice(1).map((col, idx) => (
+              {columns.slice(1).map((col, i) => (
                 <td
                   key={col.id}
                   className={[
                     "h-[32px] border-b border-gray-200 bg-white",
-                    idx === 0 || idx === columns.length - 2 ? "border-r" : "",
+                    i === columns.length - 2 ? "border-r border-gray-200" : "",
                   ].join(" ")}
                 />
               ))}
+              <td className="h-[32px] w-[48px] border-b-0" />
             </tr>
           </tbody>
         </table>

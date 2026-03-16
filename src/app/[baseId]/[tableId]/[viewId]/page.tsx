@@ -13,7 +13,7 @@ export default async function ViewPage({ params }: ViewPageProps) {
     <div className="flex flex-1 overflow-hidden">
       <ViewSidebar tableId={tableId} viewId={viewId} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <GridToolbar />
+        <GridToolbar tableId={tableId} viewId={viewId} />
         <AirtableGrid tableId={tableId} viewId={viewId} />
       </div>
     </div>
