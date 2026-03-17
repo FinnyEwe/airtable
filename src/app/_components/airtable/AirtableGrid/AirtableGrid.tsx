@@ -24,9 +24,11 @@ import { useGridMutations } from "./useGridMutations";
 export function AirtableGrid({
   tableId,
   viewId,
+  searchQuery = "",
 }: {
   tableId?: string;
   viewId?: string;
+  searchQuery?: string;
 }) {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(
@@ -44,7 +46,11 @@ export function AirtableGrid({
   } | null>(null);
 
   const { data, isLoading } = api.tableData.getTableData.useQuery(
-    { tableId: tableId!, viewId },
+    {
+      tableId: tableId!,
+      viewId,
+      search: searchQuery.trim() || undefined,
+    },
     { enabled: !!tableId },
   );
 

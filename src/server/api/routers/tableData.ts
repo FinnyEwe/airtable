@@ -117,9 +117,7 @@ export const tableDataRouter = createTRPCRouter({
 
             let viewFilters: ViewFilter[] = [];
             let viewSorts: ViewSort[]     = [];
-            let searchQuery: string | null = null;
             let hiddenColumnIds: string[] = [];
-
             let viewGroups: { columnId: string; direction: string; order: number }[] = [];
 
             if (input.viewId) {
@@ -136,17 +134,25 @@ export const tableDataRouter = createTRPCRouter({
                     viewFilters    = view.filters;
                     viewSorts      = view.sorts;
                     viewGroups     = view.groups;
-                    searchQuery   = view.searchQuery;
                     hiddenColumnIds = view.hiddenColumns.map((h) => h.columnId);
                 }
             }
 
-            const rowWhere: Prisma.RowWhereInput = {
-                tableId: input.tableId,
-                ...(viewFilters.length > 0 && {
-                    AND: viewFilters.map((f) => buildFilterWhere(f)),
-                }),
-            };
+            const search = input.search?.trim();
+            const andConditions: Prisma.RowWhereInput[] = [
+                ...viewFilters.map((f) => buildFilterWhere(f)),
+                ...(search
+                    ? [
+                          {
+                              cells: {
+                                  some: {
+                                      value: { contains: search, mode: "insensitive" as const },
+                                  },
+                              },
+                          },
+                      ]
+                    : []),
+            ].filter((c) => Object.keys(c).length > 0);
 
             const [columns, rows] = await Promise.all([
                 ctx.db.column.findMany({
@@ -161,7 +167,10 @@ export const tableDataRouter = createTRPCRouter({
                     },
                 }),
                 ctx.db.row.findMany({
-                    where: rowWhere,
+                    where: {
+                        tableId: input.tableId,
+                        ...(andConditions.length > 0 && { AND: andConditions }),
+                    },
                     orderBy: { order: "asc" },
                     select: {
                         id:    true,
@@ -176,32 +185,23 @@ export const tableDataRouter = createTRPCRouter({
                 }),
             ]);
 
-            // Apply search across all cell values
-            let filteredRows = rows;
-            if (searchQuery) {
-                const q = searchQuery.toLowerCase();
-                filteredRows = rows.filter((row) =>
-                    row.cells.some((cell) => cell.value?.toLowerCase().includes(q)),
-                );
-            }
-
             // Apply sorts in DB (groups first, then view sorts)
             const sortOrder = [
                 ...viewGroups.map((g) => ({ columnId: g.columnId, direction: g.direction })),
                 ...viewSorts.map((s) => ({ columnId: s.columnId, direction: s.direction })),
             ];
-            if (sortOrder.length > 0 && filteredRows.length > 0) {
-                const rowIds = filteredRows.map((r) => r.id);
+            if (sortOrder.length > 0 && rows.length > 0) {
+                const rowIds = rows.map((r) => r.id);
                 const sortedIds = await getSortedRowIds(ctx.db, rowIds, sortOrder);
                 const idToIndex = new Map(sortedIds.map((r, i) => [r.id, i]));
-                filteredRows = [...filteredRows].sort(
+                rows.sort(
                     (a, b) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0),
                 );
             }
 
             return {
                 columns,
-                rows: filteredRows,
+                rows,
                 groups: viewGroups,
                 hiddenColumnIds,
                 filters: viewFilters.map((f) => ({

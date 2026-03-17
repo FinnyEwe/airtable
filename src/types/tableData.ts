@@ -4,6 +4,7 @@ import { z } from "zod";
 export const getTableDataInputSchema = z.object({
     tableId: z.string().cuid(),
     viewId:  z.string().cuid().optional(),
+    search:  z.string().optional(),
 });
 
 export type GetTableDataInput = z.infer<typeof getTableDataInputSchema>;
