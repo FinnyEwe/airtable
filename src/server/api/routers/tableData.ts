@@ -77,12 +77,13 @@ export const tableDataRouter = createTRPCRouter({
         .input(getTableDataInputSchema)
         .output(getTableDataOutputSchema)
         .query(async ({ ctx, input }) => {
-            type ViewFilter = { columnId: string; operator: string; value: string | null; order: number };
+            type ViewFilter = { id: string; columnId: string; operator: string; value: string | null; order: number };
             type ViewSort   = { columnId: string; direction: string; order: number };
 
             let viewFilters: ViewFilter[] = [];
             let viewSorts: ViewSort[]     = [];
             let searchQuery: string | null = null;
+            let hiddenColumnIds: string[] = [];
 
             let viewGroups: { columnId: string; direction: string; order: number }[] = [];
 
@@ -90,16 +91,18 @@ export const tableDataRouter = createTRPCRouter({
                 const view = await ctx.db.view.findUnique({
                     where: { id: input.viewId },
                     include: {
-                        filters: { orderBy: { order: "asc" } },
-                        sorts:   { orderBy: { order: "asc" } },
-                        groups:  { orderBy: { order: "asc" } },
+                        filters:         { orderBy: { order: "asc" } },
+                        sorts:          { orderBy: { order: "asc" } },
+                        groups:         { orderBy: { order: "asc" } },
+                        hiddenColumns:  true,
                     },
                 });
                 if (view) {
-                    viewFilters = view.filters;
-                    viewSorts   = view.sorts;
-                    viewGroups  = view.groups;
-                    searchQuery = view.searchQuery;
+                    viewFilters    = view.filters;
+                    viewSorts      = view.sorts;
+                    viewGroups     = view.groups;
+                    searchQuery   = view.searchQuery;
+                    hiddenColumnIds = view.hiddenColumns.map((h) => h.columnId);
                 }
             }
 
@@ -165,6 +168,18 @@ export const tableDataRouter = createTRPCRouter({
                 });
             }
 
-            return { columns, rows: filteredRows, groups: viewGroups };
+            return {
+                columns,
+                rows: filteredRows,
+                groups: viewGroups,
+                hiddenColumnIds,
+                filters: viewFilters.map((f) => ({
+                    id: f.id,
+                    columnId: f.columnId,
+                    operator: f.operator,
+                    value: f.value,
+                    order: f.order,
+                })),
+            };
         }),
 });

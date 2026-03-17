@@ -1,107 +1,101 @@
 "use client";
 
-import { Dropdown } from "~/app/_components/ui/Dropdown";
 import {
   QuestionIcon,
   ChevronDownIcon,
-  TrashIcon,
   PlusIcon,
   TextFieldIcon,
 } from "../icons";
 import { columnTypeIcon, getSortLabel } from "../utils/columnUtils";
-import { GroupFieldPicker } from "./GroupFieldPicker";
-import { useGroupDropdownContext } from "./GroupDropdownContext";
+import { GroupFieldPicker } from "../GroupDropdown/GroupFieldPicker";
+import { useSortDropdownContext } from "./SortDropdownContext";
+import { Dropdown } from "~/app/_components/ui/Dropdown";
 
-export function GroupLevelsList() {
+function XIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M4 4l8 8M12 4l-8 8" />
+    </svg>
+  );
+}
+
+export function SortLevelsList() {
   const {
-    groupLevels,
+    sortLevels,
     searchQuery,
     setSearchQuery,
     fieldPickerRowIndex,
-    sortDropdownIndex,
+    directionDropdownIndex,
     setFieldPickerRowIndex,
-    setSortDropdownIndex,
+    setDirectionDropdownIndex,
     fieldButtonRefs,
-    sortButtonRefs,
-    addSubgroupButtonRef,
+    directionButtonRefs,
+    addSortButtonRef,
     getColumnById,
     availableForPicker,
-    handleSelectField,
-    handleAddSubgroup,
-    handleRemoveLevel,
-    handleRemoveAllGroups,
-    handleSortDirectionSelect,
-  } = useGroupDropdownContext();
+    handleSelectColumn,
+    handleAddSort,
+    handleRemoveSort,
+    handleDirectionSelect,
+  } = useSortDropdownContext();
 
   const showFieldPicker = fieldPickerRowIndex !== null;
-  const showSortDropdown = sortDropdownIndex !== null;
+  const showDirectionDropdown = directionDropdownIndex !== null;
 
   return (
-    <div className="flex min-w-[420px] flex-col p-1.5">
+    <div className="flex min-w-[440px] flex-col overflow-x-hidden p-2">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2">
+      <div className="flex items-center justify-between px-4 py-2">
         <div className="flex items-center gap-1">
-          <p className="text-xs font-semibold text-gray-600">Group by</p>
+          <p className="text-xs font-semibold text-gray-600">Sort by</p>
           <button
             type="button"
             className="flex items-center rounded text-gray-400 hover:text-gray-600"
-            aria-label="Learn more about grouping"
+            aria-label="Learn more about sorting"
           >
             <QuestionIcon />
           </button>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="text-xs text-blue-600 hover:text-blue-700"
-            aria-label="Collapse all"
-          >
-            Collapse all
-          </button>
-          <button
-            type="button"
-            className="text-xs text-blue-600 hover:text-blue-700"
-            aria-label="Expand all"
-          >
-            Expand all
-          </button>
-          <button
-            type="button"
-            className="text-xs text-red-500 hover:text-red-600 hover:underline"
-            aria-label="Remove grouping"
-            onClick={handleRemoveAllGroups}
-          >
-            Remove grouping
-          </button>
-        </div>
       </div>
 
-      <hr className="mx-3 my-2 border-0 border-b border-gray-200" />
+      <hr className="mx-4 my-1 border-0 border-b border-gray-200" />
 
-      {/* Group levels */}
+      {/* Sort levels */}
       <div
-        className="overflow-y-auto py-1"
+        className="overflow-y-auto overflow-x-hidden py-1"
         style={{
           minHeight: 70,
           maxHeight: "calc(100vh - 380px)",
         }}
       >
         <ul className="flex flex-col gap-1 pt-1">
-          {groupLevels.map((level, index) => {
+          {sortLevels.map((level, index) => {
             const col = getColumnById(level.columnId);
             const isPickerOpen = fieldPickerRowIndex === index;
 
             return (
-              <li key={index} className="flex items-center gap-3 px-3">
-                <div className="w-60 shrink-0">
+              <li
+                key={index}
+                className="flex items-center gap-3 px-4"
+                style={{ minHeight: 36 }}
+              >
+                {/* Column picker */}
+                <div className="w-[260px] shrink-0">
                   <button
                     ref={(el) => {
                       fieldButtonRefs.current[index] = el;
                     }}
                     type="button"
-                    className="flex h-7 w-full items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-2 text-left text-sm text-gray-700 hover:border-gray-300 hover:bg-gray-100"
+                    className="flex h-7 w-full items-center gap-1.5 rounded border border-gray-200 bg-white px-2 text-left text-sm text-gray-700 hover:border-gray-300 hover:bg-gray-50"
                     onClick={() => {
-                      setSortDropdownIndex(null);
+                      setDirectionDropdownIndex(null);
                       setFieldPickerRowIndex(isPickerOpen ? null : index);
                     }}
                   >
@@ -111,70 +105,73 @@ export function GroupLevelsList() {
                     <span className="truncate flex-1">
                       {col?.name ?? "Choose field"}
                     </span>
-                    <ChevronDownIcon />
+                    <ChevronDownIcon className="shrink-0" />
                   </button>
                 </div>
 
+                {/* Direction selector */}
                 <div className="w-[120px] shrink-0">
                   <button
                     ref={(el) => {
-                      sortButtonRefs.current[index] = el;
+                      directionButtonRefs.current[index] = el;
                     }}
                     type="button"
-                    className="flex h-7 w-full items-center justify-between rounded border border-gray-200 bg-gray-50 px-2 text-sm text-gray-700 hover:border-gray-300 hover:bg-gray-100"
+                    className="flex h-7 w-full items-center justify-between rounded border border-gray-200 bg-white px-2 text-sm text-gray-700 hover:border-gray-300 hover:bg-gray-50"
                     onClick={() => {
                       setFieldPickerRowIndex(null);
-                      setSortDropdownIndex(
-                        sortDropdownIndex === index ? null : index,
+                      setDirectionDropdownIndex(
+                        directionDropdownIndex === index ? null : index
                       );
                     }}
                   >
-                    <span>
-                      {getSortLabel(col?.type ?? "text", level.sortDirection)}
+                    <span className="truncate">
+                      {getSortLabel(col?.type ?? "text", level.direction)}
                     </span>
-                    <ChevronDownIcon />
+                    <ChevronDownIcon className="shrink-0" />
                   </button>
                 </div>
 
-                <div className="w-7 shrink-0" />
-
+                {/* Remove */}
                 <button
                   type="button"
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                  aria-label="Remove group"
-                  onClick={() => handleRemoveLevel(index)}
+                  aria-label="Remove sort"
+                  onClick={() => handleRemoveSort(index)}
                 >
-                  <TrashIcon />
+                  <XIcon />
                 </button>
               </li>
             );
           })}
         </ul>
 
+        {/* Add another sort */}
         <div className="mt-2 flex flex-1">
           <button
-            ref={addSubgroupButtonRef}
+            ref={addSortButtonRef}
             type="button"
-            className="flex flex-1 items-center gap-2 py-1.5 pl-3 text-sm font-medium text-gray-600 hover:text-gray-800"
-            onClick={handleAddSubgroup}
+            className="flex flex-1 items-center gap-2 py-1.5 pl-4 text-sm font-medium text-gray-600 hover:text-gray-800"
+            onClick={handleAddSort}
           >
             <PlusIcon size={16} />
-            Add subgroup
+            Add another sort
           </button>
         </div>
       </div>
 
-      {/* Sort direction dropdown */}
-      {showSortDropdown && sortDropdownIndex !== null && (
+      {/* Direction dropdown */}
+      {showDirectionDropdown && directionDropdownIndex !== null && (
         <Dropdown
           open={true}
-          onClose={() => setSortDropdownIndex(null)}
-          anchor={sortButtonRefs.current[sortDropdownIndex] ?? undefined}
+          onClose={() => setDirectionDropdownIndex(null)}
+          anchor={
+            directionButtonRefs.current[directionDropdownIndex] ?? undefined
+          }
           content={
             <ul className="py-1" role="menu">
               {(["asc", "desc"] as const).map((dir) => {
                 const col = getColumnById(
-                  groupLevels[sortDropdownIndex]?.columnId ?? "",
+                  sortLevels[directionDropdownIndex]?.columnId ?? ""
                 );
                 const label = getSortLabel(col?.type ?? "text", dir);
                 return (
@@ -184,7 +181,7 @@ export function GroupLevelsList() {
                       role="menuitem"
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600"
                       onClick={() =>
-                        handleSortDirectionSelect(sortDropdownIndex, dir)
+                        handleDirectionSelect(directionDropdownIndex, dir)
                       }
                     >
                       {label}
@@ -205,16 +202,16 @@ export function GroupLevelsList() {
           open={true}
           onClose={() => setFieldPickerRowIndex(null)}
           anchor={
-            fieldPickerRowIndex < groupLevels.length
+            fieldPickerRowIndex < sortLevels.length
               ? fieldButtonRefs.current[fieldPickerRowIndex] ?? undefined
-              : addSubgroupButtonRef.current ?? undefined
+              : addSortButtonRef.current ?? undefined
           }
           content={
             <GroupFieldPicker
               columns={availableForPicker}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
-              onSelectField={handleSelectField}
+              onSelectField={handleSelectColumn}
               maxHeight={48 * 6}
             />
           }

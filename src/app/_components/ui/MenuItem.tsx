@@ -8,6 +8,7 @@ export interface MenuItemProps {
   badge?: React.ReactNode;
   disabled?: boolean;
   dividerBelow?: boolean;
+  destructive?: boolean;
   onClick?: () => void;
   "aria-label"?: string;
 }
@@ -18,6 +19,7 @@ export function MenuItem({
   badge,
   disabled = false,
   dividerBelow = false,
+  destructive = false,
   onClick,
   "aria-label": ariaLabel,
 }: MenuItemProps) {
@@ -33,11 +35,13 @@ export function MenuItem({
             "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors",
             disabled
               ? "cursor-not-allowed text-gray-400"
-              : "text-gray-700 hover:bg-gray-100",
+              : destructive
+                ? "text-red-600 hover:bg-red-50"
+                : "text-gray-700 hover:bg-gray-100",
           ].join(" ")}
         >
           {icon && (
-            <span className="flex flex-none items-center text-gray-500">
+            <span className={destructive ? "flex flex-none items-center text-red-600" : "flex flex-none items-center text-gray-500"}>
               {icon}
             </span>
           )}

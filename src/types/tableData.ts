@@ -43,10 +43,22 @@ export const viewGroupRefSchema = z.object({
     order:     z.number().int(),
 });
 
-export const getTableDataOutputSchema = z.object({
-    columns: z.array(columnSchema),
-    rows:    z.array(rowSchema),
-    groups:  z.array(viewGroupRefSchema),
+export const viewFilterRefSchema = z.object({
+    id:       z.string().cuid(),
+    columnId: z.string().cuid(),
+    operator: z.string(),
+    value:    z.string().nullable(),
+    order:    z.number().int(),
 });
+
+export const getTableDataOutputSchema = z.object({
+    columns:         z.array(columnSchema),
+    rows:            z.array(rowSchema),
+    groups:          z.array(viewGroupRefSchema),
+    hiddenColumnIds: z.array(z.string().cuid()),
+    filters:         z.array(viewFilterRefSchema),
+});
+
+export type ViewFilterRef = z.infer<typeof viewFilterRefSchema>;
 
 export type GetTableDataOutput = z.infer<typeof getTableDataOutputSchema>;

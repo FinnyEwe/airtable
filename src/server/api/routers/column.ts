@@ -8,6 +8,10 @@ const createColumnSchema = z.object({
   createdById: z.string(),
 });
 
+const deleteColumnSchema = z.object({
+  columnId: z.string().cuid(),
+});
+
 export const columnRouter = createTRPCRouter({
   create: publicProcedure
     .input(createColumnSchema)
@@ -28,6 +32,13 @@ export const columnRouter = createTRPCRouter({
           tableId: input.tableId,
           createdById: input.createdById,
         },
+      });
+    }),
+  delete: publicProcedure
+    .input(deleteColumnSchema)
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.column.delete({
+        where: { id: input.columnId },
       });
     }),
 });

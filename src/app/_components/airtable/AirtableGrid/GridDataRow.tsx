@@ -14,6 +14,7 @@ interface GridDataRowProps {
   tableData: GridRow[];
   isSelected: boolean;
   onRowSelect: (rowId: string) => void;
+  onRowContextMenu?: (e: React.MouseEvent<HTMLTableRowElement>, rowId: string) => void;
 }
 
 export function GridDataRow({
@@ -22,11 +23,13 @@ export function GridDataRow({
   tableData,
   isSelected,
   onRowSelect,
+  onRowContextMenu,
 }: GridDataRowProps) {
   const rowIndex = tableData.findIndex((r) => r.id === row.id) + 1;
 
   return (
     <tr
+      onContextMenu={onRowContextMenu ? (e) => onRowContextMenu(e, row.id) : undefined}
       className={[
         "group",
         isSelected ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-[#f8fbff]",

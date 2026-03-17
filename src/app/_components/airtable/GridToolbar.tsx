@@ -14,6 +14,9 @@ import {
   SearchIcon,
 } from "./icons";
 import { GroupDropdown } from "./GroupDropdown";
+import { HideColumnsDropdown } from "./HideColumnsDropdown/HideColumnsDropdown";
+import { FilterDropdown } from "./FilterDropdown/FilterDropdown";
+import { SortDropdown } from "./SortDropdown/SortDropdown";
 
 const toolbarButtons = [
   { icon: <EyeOffIcon />, label: "Hide fields", key: "hide" },
@@ -31,7 +34,13 @@ interface GridToolbarProps {
 
 export function GridToolbar({ tableId, viewId }: GridToolbarProps) {
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
+  const [hideColumnsDropdownOpen, setHideColumnsDropdownOpen] = useState(false);
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const groupButtonRef = useRef<HTMLButtonElement>(null);
+  const hideColumnsButtonRef = useRef<HTMLButtonElement>(null);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const sortButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div className="flex h-[37px] shrink-0 items-center border-b border-gray-200 bg-white px-3">
@@ -50,14 +59,35 @@ export function GridToolbar({ tableId, viewId }: GridToolbarProps) {
         {toolbarButtons.map(({ icon, label, key }) => (
           <button
             key={key}
-            ref={key === "group" ? groupButtonRef : undefined}
+            ref={
+              key === "group"
+                ? groupButtonRef
+                : key === "hide"
+                  ? hideColumnsButtonRef
+                  : key === "filter"
+                    ? filterButtonRef
+                    : key === "sort"
+                      ? sortButtonRef
+                      : undefined
+            }
             onClick={
               key === "group" && tableId
                 ? () => setGroupDropdownOpen((v) => !v)
-                : undefined
+                : key === "hide" && tableId
+                  ? () => setHideColumnsDropdownOpen((v) => !v)
+                  : key === "filter" && tableId
+                    ? () => setFilterDropdownOpen((v) => !v)
+                    : key === "sort" && tableId
+                      ? () => setSortDropdownOpen((v) => !v)
+                      : undefined
             }
             className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 ${
-              key === "group" && groupDropdownOpen ? "bg-gray-100" : ""
+              (key === "group" && groupDropdownOpen) ||
+              (key === "hide" && hideColumnsDropdownOpen) ||
+              (key === "filter" && filterDropdownOpen) ||
+              (key === "sort" && sortDropdownOpen)
+                ? "bg-gray-100"
+                : ""
             }`}
           >
             {icon}
@@ -67,13 +97,36 @@ export function GridToolbar({ tableId, viewId }: GridToolbarProps) {
       </div>
 
       {tableId && (
-        <GroupDropdown
-          tableId={tableId}
-          viewId={viewId}
-          anchorRef={groupButtonRef}
-          isOpen={groupDropdownOpen}
-          onClose={() => setGroupDropdownOpen(false)}
-        />
+        <>
+          <GroupDropdown
+            tableId={tableId}
+            viewId={viewId}
+            anchorRef={groupButtonRef}
+            isOpen={groupDropdownOpen}
+            onClose={() => setGroupDropdownOpen(false)}
+          />
+          <HideColumnsDropdown
+            tableId={tableId}
+            viewId={viewId}
+            anchorRef={hideColumnsButtonRef}
+            isOpen={hideColumnsDropdownOpen}
+            onClose={() => setHideColumnsDropdownOpen(false)}
+          />
+          <FilterDropdown
+            tableId={tableId}
+            viewId={viewId}
+            anchorRef={filterButtonRef}
+            isOpen={filterDropdownOpen}
+            onClose={() => setFilterDropdownOpen(false)}
+          />
+          <SortDropdown
+            tableId={tableId}
+            viewId={viewId}
+            anchorRef={sortButtonRef}
+            isOpen={sortDropdownOpen}
+            onClose={() => setSortDropdownOpen(false)}
+          />
+        </>
       )}
 
       <div className="mx-1 h-4 w-px bg-gray-200" />

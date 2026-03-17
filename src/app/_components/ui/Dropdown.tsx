@@ -42,6 +42,8 @@ export interface DropdownProps {
   anchor?: HTMLElement | null;
   width?: number;
   maxHeight?: number;
+  /** When true, no maxHeight or overflow scroll - content shows fully. */
+  noScroll?: boolean;
   /**
    * Floating UI placement. e.g. "bottom-start" | "bottom-end" | "top-start" etc.
    * Defaults to "bottom-start".
@@ -57,6 +59,7 @@ export function Dropdown({
   anchor,
   width = 280,
   maxHeight = 400,
+  noScroll = false,
   placement = "bottom-start",
 }: DropdownProps) {
   const [mounted, setMounted] = useState(false);
@@ -91,14 +94,21 @@ export function Dropdown({
   const panel = (
     <div
       ref={refs.setFloating}
-      style={{ ...floatingStyles, width, maxHeight, zIndex: 50 }}
+      style={{
+        ...floatingStyles,
+        width,
+        ...(noScroll ? {} : { maxHeight }),
+        zIndex: 50,
+      }}
       {...getFloatingProps()}
       role="dialog"
       tabIndex={-1}
       className={
         content
           ? "overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg outline-none"
-          : "overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg outline-none"
+          : noScroll
+            ? "overflow-visible rounded-lg border border-gray-200 bg-white py-1 shadow-lg outline-none"
+            : "overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg outline-none"
       }
     >
       {content ?? (

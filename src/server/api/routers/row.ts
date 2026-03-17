@@ -6,6 +6,10 @@ const createRowSchema = z.object({
   createdById: z.string(),
 });
 
+const deleteRowSchema = z.object({
+  rowId: z.string().cuid(),
+});
+
 export const rowRouter = createTRPCRouter({
   create: publicProcedure
     .input(createRowSchema)
@@ -24,6 +28,13 @@ export const rowRouter = createTRPCRouter({
           tableId: input.tableId,
           createdById: input.createdById,
         },
+      });
+    }),
+  delete: publicProcedure
+    .input(deleteRowSchema)
+    .mutation(async ({ ctx, input }) => {
+      return ctx.db.row.delete({
+        where: { id: input.rowId },
       });
     }),
 });

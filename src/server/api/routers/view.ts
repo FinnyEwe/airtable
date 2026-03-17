@@ -6,6 +6,9 @@ import {
     viewWithConfigSchema,
     createViewSchema,
     updateViewGroupsSchema,
+    updateColumnVisibilitySchema,
+    updateViewFiltersSchema,
+    updateViewSortsSchema,
 } from "~/types/view";
 
 export const viewRouter = createTRPCRouter({
@@ -26,9 +29,10 @@ export const viewRouter = createTRPCRouter({
             const view = await ctx.db.view.findUniqueOrThrow({
                 where: { id: input.viewId },
                 include: {
-                    filters: { orderBy: { order: "asc" } },
-                    sorts:   { orderBy: { order: "asc" } },
-                    groups:  { orderBy: { order: "asc" } },
+                    filters:        { orderBy: { order: "asc" } },
+                    sorts:          { orderBy: { order: "asc" } },
+                    groups:         { orderBy: { order: "asc" } },
+                    hiddenColumns:  true,
                 },
             });
             return view;
@@ -68,9 +72,74 @@ export const viewRouter = createTRPCRouter({
             return ctx.db.view.findUniqueOrThrow({
                 where: { id: input.viewId },
                 include: {
-                    filters: { orderBy: { order: "asc" } },
-                    sorts:   { orderBy: { order: "asc" } },
-                    groups:  { orderBy: { order: "asc" } },
+                    filters:        { orderBy: { order: "asc" } },
+                    sorts:          { orderBy: { order: "asc" } },
+                    groups:         { orderBy: { order: "asc" } },
+                    hiddenColumns:  true,
+                },
+            });
+        }),
+
+    updateColumnVisibility: publicProcedure
+        .input(updateColumnVisibilitySchema)
+        .mutation(async ({ ctx, input }) => {
+            await ctx.db.$transaction(async (tx) => {
+                await tx.viewColumnVisibility.deleteMany({ where: { viewId: input.viewId } });
+                if (input.hiddenColumnIds.length > 0) {
+                    await tx.viewColumnVisibility.createMany({
+                        data: input.hiddenColumnIds.map((columnId) => ({
+                            viewId: input.viewId,
+                            columnId,
+                        })),
+                    });
+                }
+            });
+            return { success: true };
+        }),
+
+    updateFilters: publicProcedure
+        .input(updateViewFiltersSchema)
+        .mutation(async ({ ctx, input }) => {
+            await ctx.db.$transaction(async (tx) => {
+                await tx.viewFilter.deleteMany({ where: { viewId: input.viewId } });
+                if (input.filters.length > 0) {
+                    await tx.viewFilter.createMany({
+                        data: input.filters.map((f, i) => ({
+                            viewId: input.viewId,
+                            columnId: f.columnId,
+                            operator: f.operator,
+                            value: f.value,
+                            order: i,
+                        })),
+                    });
+                }
+            });
+            return { success: true };
+        }),
+
+    updateSorts: publicProcedure
+        .input(updateViewSortsSchema)
+        .mutation(async ({ ctx, input }) => {
+            await ctx.db.$transaction(async (tx) => {
+                await tx.viewSort.deleteMany({ where: { viewId: input.viewId } });
+                if (input.sorts.length > 0) {
+                    await tx.viewSort.createMany({
+                        data: input.sorts.map((s, i) => ({
+                            viewId: input.viewId,
+                            columnId: s.columnId,
+                            direction: s.direction,
+                            order: i,
+                        })),
+                    });
+                }
+            });
+            return ctx.db.view.findUniqueOrThrow({
+                where: { id: input.viewId },
+                include: {
+                    filters:        { orderBy: { order: "asc" } },
+                    sorts:          { orderBy: { order: "asc" } },
+                    groups:         { orderBy: { order: "asc" } },
+                    hiddenColumns:  true,
                 },
             });
         }),

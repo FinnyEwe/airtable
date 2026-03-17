@@ -15,8 +15,10 @@ import {
   type DisplayItem,
 } from "../utils/displayItems";
 import { ColumnHeader } from "./ColumnHeader";
+import { ColumnContextMenu } from "./ColumnContextMenu";
 import { GroupHeaderRow } from "./GroupHeaderRow";
 import { GridDataRow } from "./GridDataRow";
+import { RowContextMenu } from "./RowContextMenu";
 import { useGridMutations } from "./useGridMutations";
 
 export function AirtableGrid({
@@ -30,13 +32,26 @@ export function AirtableGrid({
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(
     new Set(),
   );
+  const [contextMenu, setContextMenu] = useState<{
+    anchor: HTMLElement;
+    columnId: string;
+    columnType: string;
+    isFirstColumn: boolean;
+  } | null>(null);
+  const [rowContextMenu, setRowContextMenu] = useState<{
+    anchor: HTMLElement;
+    rowId: string;
+  } | null>(null);
 
   const { data, isLoading } = api.tableData.getTableData.useQuery(
     { tableId: tableId!, viewId },
     { enabled: !!tableId },
   );
 
-  const { createRow, createColumn } = useGridMutations({ tableId, viewId });
+  const { createRow, createColumn, deleteColumn, deleteRow } = useGridMutations({
+    tableId,
+    viewId,
+  });
 
   const handleAddRow = () => {
     if (!tableId) return;
@@ -109,6 +124,34 @@ export function AirtableGrid({
     });
   };
 
+  const handleColumnContextMenu = (
+    e: React.MouseEvent<HTMLTableCellElement>,
+    columnId: string,
+    columnType: string,
+    isFirstColumn: boolean,
+  ) => {
+    e.preventDefault();
+    setContextMenu({ anchor: e.currentTarget, columnId, columnType, isFirstColumn });
+  };
+
+  const handleDeleteColumn = (columnId: string) => {
+    deleteColumn.mutate({ columnId });
+    setContextMenu(null);
+  };
+
+  const handleRowContextMenu = (
+    e: React.MouseEvent<HTMLTableRowElement>,
+    rowId: string,
+  ) => {
+    e.preventDefault();
+    setRowContextMenu({ anchor: e.currentTarget, rowId });
+  };
+
+  const handleDeleteRow = (rowId: string) => {
+    deleteRow.mutate({ rowId });
+    setRowContextMenu(null);
+  };
+
   const columns = useMemo<ColumnDef<GridRow>[]>(() => {
     const checkboxCol: ColumnDef<GridRow> = {
       id: "checkbox",
@@ -142,7 +185,10 @@ export function AirtableGrid({
 
     if (!data?.columns.length) return [checkboxCol];
 
-    const dataCols: ColumnDef<GridRow>[] = data.columns.map((col) => ({
+    const hiddenSet = new Set(data.hiddenColumnIds ?? []);
+    const visibleColumns = data.columns.filter((col) => !hiddenSet.has(col.id));
+
+    const dataCols: ColumnDef<GridRow>[] = visibleColumns.map((col) => ({
       id: col.id,
       accessorKey: col.id,
       header: () => <ColumnHeader type={col.type} label={col.name} />,
@@ -167,7 +213,8 @@ export function AirtableGrid({
     );
   }
 
-  const dataColumns = data?.columns ?? [];
+  const hiddenSet = new Set(data?.hiddenColumnIds ?? []);
+  const dataColumns = (data?.columns ?? []).filter((col) => !hiddenSet.has(col.id));
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-white">
@@ -197,6 +244,19 @@ export function AirtableGrid({
                       width: header.column.getSize(),
                       ...(idx === 0 && { left: 0 }),
                     }}
+                    onContextMenu={
+                      header.column.id !== "checkbox"
+                        ? (e) => {
+                            const col = dataColumns.find((c) => c.id === header.column.id);
+                            handleColumnContextMenu(
+                              e,
+                              header.column.id,
+                              col?.type ?? "text",
+                              idx === 1,
+                            );
+                          }
+                        : undefined
+                    }
                   >
                     {flexRender(
                       header.column.columnDef.header,
@@ -238,6 +298,7 @@ export function AirtableGrid({
                   tableData={tableData}
                   isSelected={selectedRows.has(item.row.id)}
                   onRowSelect={handleRowSelect}
+                  onRowContextMenu={handleRowContextMenu}
                 />
               );
             })}
@@ -268,6 +329,24 @@ export function AirtableGrid({
           </tbody>
         </table>
       </div>
+
+      <ColumnContextMenu
+        open={!!contextMenu}
+        onClose={() => setContextMenu(null)}
+        anchor={contextMenu?.anchor ?? null}
+        columnId={contextMenu?.columnId ?? ""}
+        columnType={contextMenu?.columnType ?? "text"}
+        isFirstColumn={contextMenu?.isFirstColumn ?? false}
+        onDeleteColumn={handleDeleteColumn}
+      />
+
+      <RowContextMenu
+        open={!!rowContextMenu}
+        onClose={() => setRowContextMenu(null)}
+        anchor={rowContextMenu?.anchor ?? null}
+        rowId={rowContextMenu?.rowId ?? ""}
+        onDeleteRow={handleDeleteRow}
+      />
 
       <div className="flex h-[28px] shrink-0 items-center justify-between border-t border-gray-200 bg-white px-3">
         <button

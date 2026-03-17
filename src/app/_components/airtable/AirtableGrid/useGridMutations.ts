@@ -128,5 +128,80 @@ export function useGridMutations({ tableId, viewId }: UseGridMutationsProps) {
     },
   });
 
-  return { createRow, createColumn };
+  const deleteColumn = api.column.delete.useMutation({
+    onMutate: async ({ columnId }) => {
+      await utils.tableData.getTableData.cancel({
+        tableId: tableId!,
+        viewId,
+      });
+
+      const previousData = utils.tableData.getTableData.getData({
+        tableId: tableId!,
+        viewId,
+      });
+
+      utils.tableData.getTableData.setData(
+        { tableId: tableId!, viewId },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            columns: old.columns.filter((col) => col.id !== columnId),
+            rows: old.rows.map((row) => ({
+              ...row,
+              cells: row.cells.filter((cell) => cell.columnId !== columnId),
+            })),
+            groups: old.groups?.filter((g) => g.columnId !== columnId) ?? [],
+          };
+        },
+      );
+
+      return { previousData };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousData) {
+        utils.tableData.getTableData.setData(
+          { tableId: tableId!, viewId },
+          context.previousData,
+        );
+      }
+    },
+  });
+
+  const deleteRow = api.row.delete.useMutation({
+    onMutate: async ({ rowId }) => {
+      await utils.tableData.getTableData.cancel({
+        tableId: tableId!,
+        viewId,
+      });
+
+      const previousData = utils.tableData.getTableData.getData({
+        tableId: tableId!,
+        viewId,
+      });
+
+      utils.tableData.getTableData.setData(
+        { tableId: tableId!, viewId },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            rows: old.rows.filter((row) => row.id !== rowId),
+          };
+        },
+      );
+
+      return { previousData };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousData) {
+        utils.tableData.getTableData.setData(
+          { tableId: tableId!, viewId },
+          context.previousData,
+        );
+      }
+    },
+  });
+
+  return { createRow, createColumn, deleteColumn, deleteRow };
 }
