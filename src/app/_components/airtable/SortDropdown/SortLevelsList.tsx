@@ -105,7 +105,7 @@ export function SortLevelsList() {
                     <span className="truncate flex-1">
                       {col?.name ?? "Choose field"}
                     </span>
-                    <ChevronDownIcon className="shrink-0" />
+                    <ChevronDownIcon />
                   </button>
                 </div>
 
@@ -127,7 +127,7 @@ export function SortLevelsList() {
                     <span className="truncate">
                       {getSortLabel(col?.type ?? "text", level.direction)}
                     </span>
-                    <ChevronDownIcon className="shrink-0" />
+                    <ChevronDownIcon />
                   </button>
                 </div>
 

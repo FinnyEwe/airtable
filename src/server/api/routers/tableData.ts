@@ -1,9 +1,44 @@
-import { type Prisma } from "../../../../generated/prisma";
+import { Prisma } from "../../../../generated/prisma";
 import { createTRPCRouter, publicProcedure } from "../trpc";
 import {
     getTableDataInputSchema,
     getTableDataOutputSchema,
 } from "~/types/tableData";
+
+async function getSortedRowIds(
+    db: { $queryRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown> },
+    rowIds: string[],
+    sortOrder: { columnId: string; direction: string }[],
+): Promise<{ id: string }[]> {
+    if (rowIds.length === 0 || sortOrder.length === 0) return [];
+
+    const joinClauses: string[] = [];
+    const orderByParts: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    for (let i = 0; i < sortOrder.length; i++) {
+        const s = sortOrder[i]!;
+        const dir = s.direction === "desc" ? "DESC" : "ASC";
+        joinClauses.push(`LEFT JOIN "Cell" c${i} ON c${i}."rowId" = r.id AND c${i}."columnId" = $${paramIndex}`);
+        params.push(s.columnId);
+        paramIndex++;
+        orderByParts.push(`COALESCE(c${i}.value, '') ${dir} NULLS LAST`);
+    }
+    orderByParts.push('r."order" ASC');
+
+    const query = `
+        SELECT r.id
+        FROM "Row" r
+        ${joinClauses.join("\n        ")}
+        WHERE r.id = ANY($${paramIndex}::text[])
+        ORDER BY ${orderByParts.join(", ")}
+    `;
+    params.push(rowIds);
+
+    const result = await db.$queryRawUnsafe(query, ...params);
+    return result as { id: string }[];
+}
 
 function buildFilterWhere(filter: {
     columnId: string;
@@ -150,22 +185,18 @@ export const tableDataRouter = createTRPCRouter({
                 );
             }
 
-            // Apply sorts in JS (avoids complex SQL on related cells)
-            // When groups exist, sort by group columns first, then view sorts
+            // Apply sorts in DB (groups first, then view sorts)
             const sortOrder = [
                 ...viewGroups.map((g) => ({ columnId: g.columnId, direction: g.direction })),
                 ...viewSorts.map((s) => ({ columnId: s.columnId, direction: s.direction })),
             ];
-            if (sortOrder.length > 0) {
-                filteredRows.sort((a, b) => {
-                    for (const sort of sortOrder) {
-                        const aVal = a.cells.find((c) => c.columnId === sort.columnId)?.value ?? "";
-                        const bVal = b.cells.find((c) => c.columnId === sort.columnId)?.value ?? "";
-                        const cmp = aVal.localeCompare(bVal);
-                        if (cmp !== 0) return sort.direction === "asc" ? cmp : -cmp;
-                    }
-                    return 0;
-                });
+            if (sortOrder.length > 0 && filteredRows.length > 0) {
+                const rowIds = filteredRows.map((r) => r.id);
+                const sortedIds = await getSortedRowIds(ctx.db, rowIds, sortOrder);
+                const idToIndex = new Map(sortedIds.map((r, i) => [r.id, i]));
+                filteredRows = [...filteredRows].sort(
+                    (a, b) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0),
+                );
             }
 
             return {
