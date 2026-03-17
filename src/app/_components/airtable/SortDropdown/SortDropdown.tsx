@@ -1,11 +1,7 @@
 "use client";
 
-import { Dropdown } from "~/app/_components/ui/Dropdown";
-import { SearchIcon, QuestionIcon } from "../icons";
-import { columnTypeIcon } from "../utils/columnUtils";
-import { SortDropdownProvider, useSortDropdownContext } from "./SortDropdownContext";
-import { SortLevelsList } from "./SortLevelsList";
 import { useSortDropdown } from "./useSortDropdown";
+import { ToolbarDropdown } from "../ToolbarDropdown";
 
 interface SortDropdownProps {
   tableId: string | undefined;
@@ -15,95 +11,6 @@ interface SortDropdownProps {
   onClose: () => void;
 }
 
-function SortColumnPicker() {
-  const {
-    searchQuery,
-    setSearchQuery,
-    filteredColumns,
-    handleSelectColumn,
-  } = useSortDropdownContext();
-
-  return (
-    <div className="flex min-w-[22rem] flex-col overflow-x-hidden">
-      {/* Header: Sort by + Learn more */}
-      <div className="flex items-center justify-between px-4 py-2">
-        <div className="flex items-center gap-1">
-          <p className="text-xs font-semibold text-gray-600">Sort by</p>
-          <button
-            type="button"
-            className="flex items-center rounded text-gray-400 hover:text-gray-600"
-            aria-label="Learn more about sorting"
-          >
-            <QuestionIcon />
-          </button>
-        </div>
-      </div>
-
-      <hr className="mx-4 my-1 border-t border-gray-200" />
-
-      {/* Search */}
-      <div className="flex items-center gap-2 px-4 py-1">
-        <span className="flex shrink-0 text-gray-400">
-          <SearchIcon />
-        </span>
-        <input
-          type="text"
-          placeholder="Find a field"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 border-none bg-transparent py-1 text-sm text-gray-700 placeholder-gray-400 outline-none"
-          autoFocus
-        />
-      </div>
-
-      {/* Column list */}
-      <div
-        className="overflow-y-auto overflow-x-hidden px-4 py-2"
-        style={{
-          minHeight: 100,
-          maxHeight: "calc(100vh - 380px)",
-        }}
-      >
-        {filteredColumns.length === 0 ? (
-          <p className="py-4 text-center text-xs text-gray-500">
-            No fields match
-          </p>
-        ) : (
-          <div className="flex flex-col">
-            {filteredColumns.map((col) => (
-              <button
-                key={col.id}
-                type="button"
-                className="flex w-full items-center gap-3 rounded px-2 py-1.5 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
-                onClick={() => handleSelectColumn(col)}
-              >
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center text-gray-500">
-                  {columnTypeIcon(col.type)}
-                </span>
-                <span className="flex-1 truncate text-sm text-gray-700">
-                  {col.name}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SortDropdownContent() {
-  const { sortLevels, fieldPickerRowIndex } = useSortDropdownContext();
-
-  const isLevelsView = sortLevels.length > 0 || fieldPickerRowIndex !== null;
-
-  if (isLevelsView) {
-    return <SortLevelsList />;
-  }
-
-  return <SortColumnPicker />;
-}
-
 export function SortDropdown({
   tableId,
   viewId,
@@ -111,29 +18,150 @@ export function SortDropdown({
   isOpen,
   onClose,
 }: SortDropdownProps) {
-  const sortDropdownValue = useSortDropdown({
-    tableId: tableId!,
-    viewId,
-    isOpen,
-  });
-
-  const isLevelsView =
-    sortDropdownValue.sortLevels.length > 0 ||
-    sortDropdownValue.fieldPickerRowIndex !== null;
-
   if (!tableId) return null;
 
-  return (
-    <SortDropdownProvider value={sortDropdownValue}>
-      <Dropdown
+  const sortDropdown = useSortDropdown({ tableId, viewId, isOpen });
+  const {
+    searchQuery,
+    setSearchQuery,
+    sortLevels,
+    fieldPickerRowIndex,
+    setFieldPickerRowIndex,
+    directionDropdownIndex,
+    setDirectionDropdownIndex,
+    fieldButtonRefs,
+    directionButtonRefs,
+    addSortButtonRef,
+    filteredColumns,
+    availableForPicker,
+    getColumnById,
+    handleSelectColumn,
+    handleAddSort,
+    handleRemoveSort,
+    handleDirectionSelect,
+  } = sortDropdown;
+
+  const showLevelsView =
+    sortLevels.length > 0 || fieldPickerRowIndex !== null;
+
+  if (!showLevelsView) {
+    return (
+      <ToolbarDropdown
         open={isOpen}
         onClose={onClose}
         anchor={anchorRef.current}
-        content={<SortDropdownContent />}
-        width={isLevelsView ? 460 : 360}
-        maxHeight={500}
+        width={360}
         placement="bottom-end"
+      >
+        <ToolbarDropdown.Header title="Sort by" />
+        <ToolbarDropdown.Divider />
+        <ToolbarDropdown.SearchHeader
+          value={searchQuery}
+          onChange={setSearchQuery}
+        />
+        <ToolbarDropdown.List minHeight={100}>
+          <ToolbarDropdown.ColumnList
+            columns={filteredColumns}
+            onSelect={handleSelectColumn}
+          />
+        </ToolbarDropdown.List>
+      </ToolbarDropdown>
+    );
+  }
+
+  return (
+    <ToolbarDropdown
+      open={isOpen}
+      onClose={onClose}
+      anchor={anchorRef.current}
+      width={460}
+      placement="bottom-end"
+    >
+      <ToolbarDropdown.Header title="Sort by" />
+      <ToolbarDropdown.Divider />
+
+      <ToolbarDropdown.List>
+        <ul className="flex flex-col gap-1 pt-1">
+          {sortLevels.map((level, index) => {
+            const col = getColumnById(level.columnId);
+            const isPickerOpen = fieldPickerRowIndex === index;
+
+            return (
+              <ToolbarDropdown.Row key={index}>
+                <ToolbarDropdown.FieldSelect
+                  column={col}
+                  onClick={() => {
+                    setDirectionDropdownIndex(null);
+                    setFieldPickerRowIndex(isPickerOpen ? null : index);
+                  }}
+                  buttonRef={(el) => {
+                    fieldButtonRefs.current[index] = el;
+                  }}
+                />
+                <ToolbarDropdown.DirectionSelect
+                  columnType={col?.type}
+                  direction={level.direction}
+                  onClick={() => {
+                    setFieldPickerRowIndex(null);
+                    setDirectionDropdownIndex(
+                      directionDropdownIndex === index ? null : index
+                    );
+                  }}
+                  buttonRef={(el) => {
+                    directionButtonRefs.current[index] = el;
+                  }}
+                />
+                <ToolbarDropdown.RemoveButton
+                  onClick={() => handleRemoveSort(index)}
+                  label="Remove sort"
+                />
+              </ToolbarDropdown.Row>
+            );
+          })}
+        </ul>
+
+        <ToolbarDropdown.AddButton
+          onClick={handleAddSort}
+          buttonRef={addSortButtonRef}
+        >
+          Add another sort
+        </ToolbarDropdown.AddButton>
+      </ToolbarDropdown.List>
+
+      <ToolbarDropdown.DirectionPickerPopover
+        open={directionDropdownIndex !== null}
+        onClose={() => setDirectionDropdownIndex(null)}
+        anchor={
+          directionDropdownIndex !== null
+            ? directionButtonRefs.current[directionDropdownIndex]
+            : undefined
+        }
+        columnType={
+          directionDropdownIndex !== null
+            ? getColumnById(
+                sortLevels[directionDropdownIndex]?.columnId ?? ""
+              )?.type
+            : undefined
+        }
+        onSelect={(dir) => {
+          if (directionDropdownIndex !== null)
+            handleDirectionSelect(directionDropdownIndex, dir);
+        }}
       />
-    </SortDropdownProvider>
+
+      <ToolbarDropdown.FieldPickerPopover
+        open={fieldPickerRowIndex !== null}
+        onClose={() => setFieldPickerRowIndex(null)}
+        anchor={
+          fieldPickerRowIndex !== null
+            ? fieldPickerRowIndex < sortLevels.length
+              ? fieldButtonRefs.current[fieldPickerRowIndex]
+              : addSortButtonRef.current
+            : undefined
+        }
+        columns={availableForPicker}
+        onSelect={handleSelectColumn}
+      />
+    </ToolbarDropdown>
   );
 }

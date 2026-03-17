@@ -1,83 +1,14 @@
 "use client";
 
-import { Dropdown } from "~/app/_components/ui/Dropdown";
-import { SearchIcon, QuestionIcon } from "../icons";
-import { columnTypeIcon } from "../utils/columnUtils";
-import { GroupDropdownProvider, useGroupDropdownContext } from "./GroupDropdownContext";
-import { GroupLevelsList } from "./GroupLevelsList";
 import { useGroupDropdown } from "./useGroupDropdown";
-import type { GroupDropdownProps } from "./types";
+import { ToolbarDropdown } from "../ToolbarDropdown";
 
-function GroupDropdownContent() {
-  const {
-    searchQuery,
-    setSearchQuery,
-    groupLevels,
-    fieldPickerRowIndex,
-    filteredColumns,
-    handleSelectField,
-  } = useGroupDropdownContext();
-
-  const isManageView = groupLevels.length > 0;
-
-  if (isManageView || fieldPickerRowIndex !== null) {
-    return <GroupLevelsList />;
-  }
-
-  return (
-    <div className="flex w-64 flex-col">
-      <div className="flex items-center justify-between px-3 py-2">
-        <div className="flex items-center gap-1">
-          <p className="text-xs font-semibold text-gray-600">Group by</p>
-          <button
-            type="button"
-            className="flex items-center rounded text-gray-400 hover:text-gray-600"
-            aria-label="Learn more about grouping"
-          >
-            <QuestionIcon />
-          </button>
-        </div>
-      </div>
-      <hr className="mx-3 border-0 border-b border-gray-200" />
-      <div className="flex items-center gap-2 px-3 py-2">
-        <SearchIcon />
-        <input
-          type="text"
-          placeholder="Find a field"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 border-none bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
-          autoFocus
-        />
-      </div>
-      <div
-        className="max-h-[min(400px,calc(100vh-280px))] overflow-y-auto py-1"
-        style={{ minHeight: 100 }}
-      >
-        {filteredColumns.length === 0 ? (
-          <p className="px-3 py-4 text-center text-xs text-gray-500">
-            No fields match
-          </p>
-        ) : (
-          filteredColumns.map((col) => (
-            <button
-              key={col.id}
-              type="button"
-              role="option"
-              aria-selected={false}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 focus:bg-blue-50 focus:text-blue-600 focus:outline-none"
-              onClick={() => handleSelectField(col)}
-            >
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center text-gray-400">
-                {columnTypeIcon(col.type)}
-              </span>
-              <span>{col.name}</span>
-            </button>
-          ))
-        )}
-      </div>
-    </div>
-  );
+interface GroupDropdownProps {
+  tableId: string;
+  viewId?: string;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 export function GroupDropdown({
@@ -87,19 +18,161 @@ export function GroupDropdown({
   isOpen,
   onClose,
 }: GroupDropdownProps) {
-  const groupDropdownValue = useGroupDropdown({ tableId, viewId, isOpen });
-  const isManageView = groupDropdownValue.groupLevels.length > 0;
+  const {
+    searchQuery,
+    setSearchQuery,
+    groupLevels,
+    fieldPickerRowIndex,
+    setFieldPickerRowIndex,
+    sortDropdownIndex,
+    setSortDropdownIndex,
+    fieldButtonRefs,
+    sortButtonRefs,
+    addSubgroupButtonRef,
+    filteredColumns,
+    availableForPicker,
+    getColumnById,
+    handleSelectField,
+    handleAddSubgroup,
+    handleRemoveLevel,
+    handleRemoveAllGroups,
+    handleSortDirectionSelect,
+  } = useGroupDropdown({ tableId, viewId, isOpen });
 
-  return (
-    <GroupDropdownProvider value={groupDropdownValue}>
-      <Dropdown
+  const hasLevels = groupLevels.length > 0;
+  const showLevelsView = hasLevels || fieldPickerRowIndex !== null;
+
+  if (!showLevelsView) {
+    return (
+      <ToolbarDropdown
         open={isOpen}
         onClose={onClose}
         anchor={anchorRef.current}
-        content={<GroupDropdownContent />}
-        width={isManageView ? 420 : 264}
-        maxHeight={500}
+        width={264}
+      >
+        <ToolbarDropdown.Header title="Group by" />
+        <ToolbarDropdown.Divider />
+        <ToolbarDropdown.SearchHeader
+          value={searchQuery}
+          onChange={setSearchQuery}
+        />
+        <ToolbarDropdown.List minHeight={100}>
+          <ToolbarDropdown.ColumnList
+            columns={filteredColumns}
+            onSelect={handleSelectField}
+          />
+        </ToolbarDropdown.List>
+      </ToolbarDropdown>
+    );
+  }
+
+  return (
+    <ToolbarDropdown
+      open={isOpen}
+      onClose={onClose}
+      anchor={anchorRef.current}
+      width={420}
+    >
+      <ToolbarDropdown.Header title="Group by">
+        <ToolbarDropdown.HeaderAction>
+          Collapse all
+        </ToolbarDropdown.HeaderAction>
+        <ToolbarDropdown.HeaderAction>
+          Expand all
+        </ToolbarDropdown.HeaderAction>
+        <ToolbarDropdown.HeaderAction
+          variant="danger"
+          onClick={handleRemoveAllGroups}
+        >
+          Remove grouping
+        </ToolbarDropdown.HeaderAction>
+      </ToolbarDropdown.Header>
+
+      <ToolbarDropdown.Divider />
+
+      <ToolbarDropdown.List>
+        <ul className="flex flex-col gap-1 pt-1">
+          {groupLevels.map((level, index) => {
+            const col = getColumnById(level.columnId);
+            const isPickerOpen = fieldPickerRowIndex === index;
+
+            return (
+              <ToolbarDropdown.Row key={index}>
+                <ToolbarDropdown.FieldSelect
+                  column={col}
+                  onClick={() => {
+                    setSortDropdownIndex(null);
+                    setFieldPickerRowIndex(isPickerOpen ? null : index);
+                  }}
+                  buttonRef={(el) => {
+                    fieldButtonRefs.current[index] = el;
+                  }}
+                />
+                <ToolbarDropdown.DirectionSelect
+                  columnType={col?.type}
+                  direction={level.sortDirection}
+                  onClick={() => {
+                    setFieldPickerRowIndex(null);
+                    setSortDropdownIndex(
+                      sortDropdownIndex === index ? null : index
+                    );
+                  }}
+                  buttonRef={(el) => {
+                    sortButtonRefs.current[index] = el;
+                  }}
+                />
+                <div className="w-7 shrink-0" />
+                <ToolbarDropdown.RemoveButton
+                  icon="trash"
+                  label="Remove group"
+                  onClick={() => handleRemoveLevel(index)}
+                />
+              </ToolbarDropdown.Row>
+            );
+          })}
+        </ul>
+
+        <ToolbarDropdown.AddButton
+          onClick={handleAddSubgroup}
+          buttonRef={addSubgroupButtonRef}
+        >
+          Add subgroup
+        </ToolbarDropdown.AddButton>
+      </ToolbarDropdown.List>
+
+      <ToolbarDropdown.DirectionPickerPopover
+        open={sortDropdownIndex !== null}
+        onClose={() => setSortDropdownIndex(null)}
+        anchor={
+          sortDropdownIndex !== null
+            ? sortButtonRefs.current[sortDropdownIndex]
+            : undefined
+        }
+        columnType={
+          sortDropdownIndex !== null
+            ? getColumnById(groupLevels[sortDropdownIndex]?.columnId ?? "")
+                ?.type
+            : undefined
+        }
+        onSelect={(dir) => {
+          if (sortDropdownIndex !== null)
+            handleSortDirectionSelect(sortDropdownIndex, dir);
+        }}
       />
-    </GroupDropdownProvider>
+
+      <ToolbarDropdown.FieldPickerPopover
+        open={fieldPickerRowIndex !== null}
+        onClose={() => setFieldPickerRowIndex(null)}
+        anchor={
+          fieldPickerRowIndex !== null
+            ? fieldPickerRowIndex < groupLevels.length
+              ? fieldButtonRefs.current[fieldPickerRowIndex]
+              : addSubgroupButtonRef.current
+            : undefined
+        }
+        columns={availableForPicker}
+        onSelect={handleSelectField}
+      />
+    </ToolbarDropdown>
   );
 }
