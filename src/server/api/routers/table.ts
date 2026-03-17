@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 import { getTablesByBaseIdSchema, getTablesByBaseIdOutputSchema, createTableSchema, tableSchema } from "~/types/table";
 
 export const tableRouter = createTRPCRouter({
@@ -13,7 +13,7 @@ export const tableRouter = createTRPCRouter({
             });
         }),
 
-    create: publicProcedure
+    create: protectedProcedure
         .input(createTableSchema)
         .output(tableSchema)
         .mutation(async ({ ctx, input }) => {
@@ -30,7 +30,6 @@ export const tableRouter = createTRPCRouter({
                     name: input.name,
                     order: nextOrder,
                     baseId: input.baseId,
-                    createdById: input.createdById,
                 },
             });
 
@@ -52,7 +51,6 @@ export const tableRouter = createTRPCRouter({
                             order: col.order,
                             config: col.config ?? null,
                             tableId: table.id,
-                            createdById: input.createdById,
                         },
                     })
                 )
@@ -64,7 +62,6 @@ export const tableRouter = createTRPCRouter({
                     type: "grid",
                     order: 0,
                     tableId: table.id,
-                    createdById: input.createdById,
                 },
             });
 
@@ -75,7 +72,6 @@ export const tableRouter = createTRPCRouter({
                         data: {
                             order: i,
                             tableId: table.id,
-                            createdById: input.createdById,
                         },
                     })
                 )

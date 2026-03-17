@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 import {
     createBaseSchema,
     getBaseByIdSchema,
@@ -35,16 +35,10 @@ export const baseRouter = createTRPCRouter({
             return base;
         }),
 
-    create: publicProcedure
+    create: protectedProcedure
         .input(createBaseSchema)
         .output(baseSchema)
         .mutation(async ({ ctx, input }) => {
-            if (!ctx.session?.user?.id) {
-                throw new TRPCError({
-                    code: "UNAUTHORIZED",
-                    message: "You must be logged in to create a base",
-                });
-            }
             return ctx.db.base.create({
                 data: {
                     ...input,

@@ -1,9 +1,8 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 
 const createRowSchema = z.object({
   tableId: z.string().cuid(),
-  createdById: z.string(),
 });
 
 const deleteRowSchema = z.object({
@@ -11,7 +10,7 @@ const deleteRowSchema = z.object({
 });
 
 export const rowRouter = createTRPCRouter({
-  create: publicProcedure
+  create: protectedProcedure
     .input(createRowSchema)
     .mutation(async ({ ctx, input }) => {
       const lastRow = await ctx.db.row.findFirst({
@@ -26,11 +25,10 @@ export const rowRouter = createTRPCRouter({
         data: {
           order: nextOrder,
           tableId: input.tableId,
-          createdById: input.createdById,
         },
       });
     }),
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(deleteRowSchema)
     .mutation(async ({ ctx, input }) => {
       return ctx.db.row.delete({

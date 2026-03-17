@@ -1,11 +1,10 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 
 const createColumnSchema = z.object({
   name: z.string().default("Untitled"),
   type: z.string().default("text"),
   tableId: z.string().cuid(),
-  createdById: z.string(),
 });
 
 const deleteColumnSchema = z.object({
@@ -13,7 +12,7 @@ const deleteColumnSchema = z.object({
 });
 
 export const columnRouter = createTRPCRouter({
-  create: publicProcedure
+  create: protectedProcedure
     .input(createColumnSchema)
     .mutation(async ({ ctx, input }) => {
       const lastColumn = await ctx.db.column.findFirst({
@@ -30,11 +29,10 @@ export const columnRouter = createTRPCRouter({
           type: input.type,
           order: nextOrder,
           tableId: input.tableId,
-          createdById: input.createdById,
         },
       });
     }),
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(deleteColumnSchema)
     .mutation(async ({ ctx, input }) => {
       return ctx.db.column.delete({

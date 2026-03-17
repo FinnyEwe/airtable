@@ -80,8 +80,6 @@ export function ViewSidebar({ tableId, viewId }: ViewSidebarProps) {
       name: viewName,
       type: "grid",
       tableId: tableId,
-      //TODO: Change to actual User IDs
-      createdById: "cmmllv5360000exgzm1wtm336", 
     });
     setShowDialog(false);
   };

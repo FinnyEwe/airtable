@@ -33,7 +33,6 @@ export function TableTabs() {
     createTableMutation.mutate({
       name: "Untitled",
       baseId: params.baseId,
-      createdById: "cmmllv5360000exgzm1wtm336",
     });
   };
 

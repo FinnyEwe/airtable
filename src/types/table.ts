@@ -7,7 +7,6 @@ export const getTablesByBaseIdSchema = z.object({
 export const createTableSchema = z.object({
     name:        z.string(),
     baseId:      z.string().cuid(),
-    createdById: z.string(),
 });
 
 export const tableSchema = z.object({
@@ -15,7 +14,6 @@ export const tableSchema = z.object({
     name:        z.string(),
     order:       z.number().int(),
     baseId:      z.string().cuid(),
-    createdById: z.string(),
     createdAt:   z.date(),
     updatedAt:   z.date(),
 });

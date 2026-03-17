@@ -1,4 +1,4 @@
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 import {
     getViewsByTableIdSchema,
     getViewsByTableIdOutputSchema,
@@ -38,7 +38,7 @@ export const viewRouter = createTRPCRouter({
             return view;
         }),
 
-    create: publicProcedure
+    create: protectedProcedure
         .input(createViewSchema)
         .mutation(async ({input, ctx})=> {
             const view = await ctx.db.view.create({
@@ -46,14 +46,13 @@ export const viewRouter = createTRPCRouter({
                     name: input.name,
                     type: input.type,
                     tableId: input.tableId,
-                    createdById: input.createdById,
                 },
             })
             return view
 
         }),
 
-    updateGroups: publicProcedure
+    updateGroups: protectedProcedure
         .input(updateViewGroupsSchema)
         .mutation(async ({ ctx, input }) => {
             await ctx.db.$transaction(async (tx) => {
@@ -80,7 +79,7 @@ export const viewRouter = createTRPCRouter({
             });
         }),
 
-    updateColumnVisibility: publicProcedure
+    updateColumnVisibility: protectedProcedure
         .input(updateColumnVisibilitySchema)
         .mutation(async ({ ctx, input }) => {
             await ctx.db.$transaction(async (tx) => {
@@ -97,7 +96,7 @@ export const viewRouter = createTRPCRouter({
             return { success: true };
         }),
 
-    updateFilters: publicProcedure
+    updateFilters: protectedProcedure
         .input(updateViewFiltersSchema)
         .mutation(async ({ ctx, input }) => {
             await ctx.db.$transaction(async (tx) => {
@@ -117,7 +116,7 @@ export const viewRouter = createTRPCRouter({
             return { success: true };
         }),
 
-    updateSorts: publicProcedure
+    updateSorts: protectedProcedure
         .input(updateViewSortsSchema)
         .mutation(async ({ ctx, input }) => {
             await ctx.db.$transaction(async (tx) => {

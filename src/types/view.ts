@@ -12,7 +12,6 @@ export const createViewSchema = z.object({
     name: z.string(),
     type: z.string(),
     tableId: z.string().cuid(),
-    createdById: z.string(),
 });
 
 
@@ -74,6 +73,11 @@ export const updateViewSortsSchema = z.object({
     })),
 });
 
+export const updateSearchQuerySchema = z.object({
+    viewId:      z.string().cuid(),
+    searchQuery: z.string().nullable(),
+});
+
 export type UpdateViewFiltersInput = z.infer<typeof updateViewFiltersSchema>;
 export type UpdateViewSortsInput = z.infer<typeof updateViewSortsSchema>;
 
@@ -85,7 +89,6 @@ export const viewSchema = z.object({
     config:      z.string().nullable(),
     searchQuery: z.string().nullable(),
     tableId:     z.string().cuid(),
-    createdById: z.string(),
     createdAt:   z.date(),
     updatedAt:   z.date(),
 });

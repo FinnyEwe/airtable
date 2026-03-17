@@ -63,7 +63,6 @@ export function AirtableGrid({
     if (!tableId) return;
     createRow.mutate({
       tableId,
-      createdById: "cmmllv5360000exgzm1wtm336",
     });
   };
 
@@ -73,7 +72,6 @@ export function AirtableGrid({
       name: "Untitled",
       type: "text",
       tableId,
-      createdById: "cmmllv5360000exgzm1wtm336",
     });
   };
 
