@@ -1,31 +1,19 @@
 "use client";
 
-import {
-  useReactTable,
-  getCoreRowModel,
-  flexRender,
-  type ColumnDef,
-} from "@tanstack/react-table";
-import { useMemo, useState, useCallback, useRef } from "react";
-import { api } from "~/trpc/react";
-import { PlusIcon } from "../icons";
-import {
-  buildDisplayItems,
-  type GridRow,
-  type DisplayItem,
-} from "../utils/displayItems";
-import { ColumnHeader } from "./ColumnHeader";
+import { useReactTable, getCoreRowModel } from "@tanstack/react-table";
+import { useMemo, useCallback, useRef } from "react";
+import { buildDisplayItems, type GridRow } from "../utils/displayItems";
 import { ColumnContextMenu } from "./ColumnContextMenu";
-import { GroupHeaderRow } from "./GroupHeaderRow";
-import { GridDataRow } from "./GridDataRow";
 import { RowContextMenu } from "./RowContextMenu";
-import { useGridMutations } from "./useGridMutations";
 import { useKeyboardNavigation } from "./useKeyboardNavigation";
 import { useCellSelection } from "./useCellSelection";
-import type { ContextMenuState, RowContextMenuState } from "./types";
-import { COLUMN_WIDTHS } from "./constants";
 import { GridRowContext } from "./useGridRowContext";
 import { GridCellContext } from "./useGridCellContext";
+import { useTableData } from "./useTableData";
+import { useGridState } from "./useGridState";
+import { useGridColumns } from "./useGridColumns";
+import { GridTable } from "./GridTable";
+import { GridToolbar } from "./GridToolbar";
 
 export function AirtableGrid({
   tableId,
@@ -36,27 +24,27 @@ export function AirtableGrid({
   viewId?: string;
   searchQuery?: string;
 }) {
-  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-  const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(
-    new Set(),
-  );
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const [rowContextMenu, setRowContextMenu] = useState<RowContextMenuState | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
-  const { data, isLoading } = api.tableData.getTableData.useQuery(
-    {
-      tableId: tableId!,
-      viewId,
-      search: searchQuery.trim() || undefined,
-    },
-    { enabled: !!tableId },
-  );
-
-  const { createRow, createColumn, deleteColumn, deleteRow, updateCell } = useGridMutations({
+  const { data, isLoading, mutations } = useTableData({
     tableId,
     viewId,
+    searchQuery,
   });
+
+  const {
+    selectedRows,
+    setSelectedRows,
+    collapsedGroupKeys,
+    contextMenu,
+    setContextMenu,
+    rowContextMenu,
+    setRowContextMenu,
+    handleRowSelect,
+    toggleGroupCollapsed,
+    handleColumnContextMenu,
+    handleRowContextMenu,
+  } = useGridState();
 
   const {
     selectedCell,
@@ -67,22 +55,6 @@ export function AirtableGrid({
     setEditingCell,
   } = useCellSelection(gridRef);
 
-  const handleAddRow = () => {
-    if (!tableId) return;
-    createRow.mutate({
-      tableId,
-    });
-  };
-
-  const handleAddColumn = () => {
-    if (!tableId) return;
-    createColumn.mutate({
-      name: "Untitled",
-      type: "text",
-      tableId,
-    });
-  };
-
   const handleSelectAll = useCallback(() => {
     if (!data) return;
     if (selectedRows.size === data.rows.length) {
@@ -90,19 +62,7 @@ export function AirtableGrid({
     } else {
       setSelectedRows(new Set(data.rows.map((row) => row.id)));
     }
-  }, [data, selectedRows.size]);
-
-  const handleRowSelect = (rowId: string) => {
-    setSelectedRows((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(rowId)) {
-        newSet.delete(rowId);
-      } else {
-        newSet.add(rowId);
-      }
-      return newSet;
-    });
-  };
+  }, [data, selectedRows.size, setSelectedRows]);
 
   const isAllSelected =
     data ? selectedRows.size === data.rows.length && data.rows.length > 0 : false;
@@ -119,7 +79,7 @@ export function AirtableGrid({
     });
   }, [data]);
 
-  const displayItems = useMemo<DisplayItem[]>(() => {
+  const displayItems = useMemo(() => {
     const groups = data?.groups ?? [];
     if (groups.length === 0) {
       return tableData.map((row) => ({ type: "row" as const, row }));
@@ -132,42 +92,59 @@ export function AirtableGrid({
     return (data?.columns ?? []).filter((col) => !hiddenSet.has(col.id));
   }, [data?.columns, data?.hiddenColumnIds]);
 
-  const toggleGroupCollapsed = (key: string) => {
-    setCollapsedGroupKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const handleColumnContextMenu = (
-    e: React.MouseEvent<HTMLTableCellElement>,
-    columnId: string,
-    columnType: string,
-    isFirstColumn: boolean,
-  ) => {
-    e.preventDefault();
-    setContextMenu({ anchor: e.currentTarget, columnId, columnType, isFirstColumn });
-  };
-
   const handleDeleteColumn = (columnId: string) => {
-    deleteColumn.mutate({ columnId });
+    mutations.deleteColumn.mutate({ columnId });
     setContextMenu(null);
   };
 
-  const handleRowContextMenu = (
-    e: React.MouseEvent<HTMLTableRowElement>,
-    rowId: string,
-  ) => {
-    e.preventDefault();
-    setRowContextMenu({ anchor: e.currentTarget, rowId });
-  };
-
   const handleDeleteRow = (rowId: string) => {
-    deleteRow.mutate({ rowId });
+    mutations.deleteRow.mutate({ rowId });
     setRowContextMenu(null);
   };
+
+  const handleAddRow = () => {
+    if (!tableId) return;
+    mutations.createRow.mutate({ tableId });
+  };
+
+  const handleAddColumn = () => {
+    if (!tableId) return;
+    mutations.createColumn.mutate({
+      name: "Untitled",
+      type: "text",
+      tableId,
+    });
+  };
+
+  const handleBulkInsert = () => {
+    if (!tableId) return;
+    mutations.bulkInsert.mutate({
+      tableId,
+      count: 10000,
+    });
+  };
+
+  const handleClearAll = () => {
+    if (!tableId) return;
+    if (!confirm("Are you sure you want to delete all rows? This cannot be undone.")) {
+      return;
+    }
+    mutations.clearAll.mutate({ tableId });
+  };
+
+  const { columns } = useGridColumns({
+    data,
+    isAllSelected,
+    isSomeSelected,
+    onSelectAll: handleSelectAll,
+  });
+
+  const table = useReactTable({
+    data: tableData,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => row.id,
+  });
 
   useKeyboardNavigation({
     gridRef,
@@ -179,67 +156,6 @@ export function AirtableGrid({
     onStartEdit: setEditingCell,
     onCancelEdit: () => setEditingCell(null),
   });
-
-  const columns = useMemo<ColumnDef<GridRow>[]>(() => {
-    const checkboxCol: ColumnDef<GridRow> = {
-      id: "checkbox",
-      header: () => (
-        <button
-          onClick={handleSelectAll}
-          className="flex h-full w-full items-center justify-center rounded hover:bg-gray-100"
-        >
-          <div className="relative h-4 w-4">
-            <input
-              type="checkbox"
-              checked={isAllSelected}
-              onChange={() => undefined}
-              className="h-4 w-4 cursor-pointer rounded border-gray-300"
-              style={{
-                accentColor:
-                  isAllSelected || isSomeSelected ? "#2563eb" : undefined,
-              }}
-            />
-            {isSomeSelected && !isAllSelected && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="h-2 w-2 bg-blue-600" />
-              </div>
-            )}
-          </div>
-        </button>
-      ),
-      cell: () => null,
-      size: COLUMN_WIDTHS.CHECKBOX,
-    };
-
-    if (!data?.columns.length) return [checkboxCol];
-
-    const hiddenSet = new Set(data.hiddenColumnIds ?? []);
-    const visibleColumns = data.columns.filter((col) => !hiddenSet.has(col.id));
-
-    const dataCols: ColumnDef<GridRow>[] = visibleColumns.map((col) => ({
-      id: col.id,
-      accessorKey: col.id,
-      header: () => <ColumnHeader type={col.type} label={col.name} />,
-      size: COLUMN_WIDTHS.DEFAULT,
-    }));
-
-    return [checkboxCol, ...dataCols];
-  }, [data, isAllSelected, isSomeSelected, handleSelectAll]);
-
-  const table = useReactTable({
-    data: tableData,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getRowId: (row) => row.id,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center bg-white">
-        <span className="text-[13px] text-gray-400">Loading...</span>
-      </div>
-    );
-  }
 
   const gridRowContextValue = useMemo(() => ({
     dataColumns,
@@ -255,11 +171,19 @@ export function AirtableGrid({
     onCellClick: handleCellClick,
     onCellDoubleClick: handleCellDoubleClick,
     onCellUpdate: (rowId: string, columnId: string, value: string | null) => {
-      updateCell.mutate({ rowId, columnId, value });
+      mutations.updateCell.mutate({ rowId, columnId, value });
       setEditingCell(null);
     },
     onCancelEdit: () => setEditingCell(null),
-  }), [selectedCell, editingCell, handleCellClick, handleCellDoubleClick, updateCell, setEditingCell]);
+  }), [selectedCell, editingCell, handleCellClick, handleCellDoubleClick, mutations.updateCell, setEditingCell]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-white">
+        <span className="text-[13px] text-gray-400">Loading...</span>
+      </div>
+    );
+  }
 
   return (
     <GridRowContext.Provider value={gridRowContextValue}>
@@ -269,155 +193,47 @@ export function AirtableGrid({
           tabIndex={0}
           className="flex flex-1 flex-col overflow-hidden bg-white outline-none"
         >
-          <div className="flex-1 overflow-auto">
-            <table className="border-collapse" style={{ tableLayout: "fixed" }}>
-              <colgroup>
-                {table.getAllColumns().map((col) => (
-                  <col key={col.id} style={{ width: col.getSize() }} />
-                ))}
-                <col style={{ width: COLUMN_WIDTHS.ADD_BUTTON }} />
-              </colgroup>
+          <GridTable
+            table={table}
+            displayItems={displayItems}
+            dataColumns={dataColumns}
+            collapsedGroupKeys={collapsedGroupKeys}
+            onToggleGroupCollapse={toggleGroupCollapsed}
+            onAddRow={handleAddRow}
+            onAddColumn={handleAddColumn}
+            onColumnContextMenu={handleColumnContextMenu}
+            isAddingRow={mutations.createRow.isPending}
+            isAddingColumn={mutations.createColumn.isPending}
+          />
 
-              <thead>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header, idx) => (
-                  <th
-                    key={header.id}
-                    className={[
-                      "h-[30px] border-b border-gray-200 bg-[#f8f8f8] px-2 text-left text-[12px] font-normal text-gray-600",
-                      idx === 0 ? "border-l-0" : "border-r",
-                      idx === 0
-                        ? "sticky z-10 bg-[#f8f8f8] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]"
-                        : "",
-                    ].join(" ")}
-                    style={{
-                      width: header.column.getSize(),
-                      ...(idx === 0 && { left: 0 }),
-                    }}
-                    onContextMenu={
-                      header.column.id !== "checkbox"
-                        ? (e) => {
-                            const col = dataColumns.find((c) => c.id === header.column.id);
-                            handleColumnContextMenu(
-                              e,
-                              header.column.id,
-                              col?.type ?? "text",
-                              idx === 1,
-                            );
-                          }
-                        : undefined
-                    }
-                  >
-                    {flexRender(
-                      header.column.columnDef.header,
-                      header.getContext(),
-                    )}
-                  </th>
-                ))}
-                <th 
-                  className="border-b border-r border-gray-200 bg-[#f8f8f8] px-2 text-center"
-                  style={{ height: 30, width: COLUMN_WIDTHS.ADD_BUTTON }}
-                >
-                  <button
-                    onClick={handleAddColumn}
-                    disabled={createColumn.isPending}
-                    className="flex h-full w-full items-center justify-center text-gray-400 hover:text-gray-600 disabled:opacity-50"
-                  >
-                    <PlusIcon />
-                  </button>
-                </th>
-              </tr>
-            ))}
-          </thead>
+          <ColumnContextMenu
+            open={!!contextMenu}
+            onClose={() => setContextMenu(null)}
+            anchor={contextMenu?.anchor ?? null}
+            columnId={contextMenu?.columnId ?? ""}
+            columnType={contextMenu?.columnType ?? "text"}
+            isFirstColumn={contextMenu?.isFirstColumn ?? false}
+            onDeleteColumn={handleDeleteColumn}
+          />
 
-          <tbody>
-            {displayItems.map((item) => {
-              if (item.type === "groupHeader") {
-                return (
-                  <GroupHeaderRow
-                    key={item.key}
-                    item={item}
-                    columns={dataColumns}
-                    isCollapsed={collapsedGroupKeys.has(item.key)}
-                    onToggleCollapse={() => toggleGroupCollapsed(item.key)}
-                  />
-                );
-              }
-              return <GridDataRow key={item.row.id} row={item.row} />;
-            })}
+          <RowContextMenu
+            open={!!rowContextMenu}
+            onClose={() => setRowContextMenu(null)}
+            anchor={rowContextMenu?.anchor ?? null}
+            rowId={rowContextMenu?.rowId ?? ""}
+            onDeleteRow={handleDeleteRow}
+          />
 
-            {/* Ghost row: add row */}
-            <tr>
-              <td 
-                className="sticky left-0 z-10 border-b border-r border-gray-200 bg-white px-2 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
-                style={{ height: 32 }}
-              >
-                <button
-                  onClick={handleAddRow}
-                  disabled={createRow.isPending}
-                  className="flex h-full w-full items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
-                  aria-label="Insert new record in grid"
-                >
-                  <PlusIcon />
-                </button>
-              </td>
-              {columns.slice(1).map((col, i) => (
-                <td
-                  key={col.id}
-                  style={{ height: 32 }}
-                  className={[
-                    "border-b border-gray-200 bg-white",
-                    i === columns.length - 2 ? "border-r border-gray-200" : "",
-                  ].join(" ")}
-                />
-              ))}
-              <td 
-                className="border-b-0" 
-                style={{ height: 32, width: COLUMN_WIDTHS.ADD_BUTTON }}
-              />
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <ColumnContextMenu
-        open={!!contextMenu}
-        onClose={() => setContextMenu(null)}
-        anchor={contextMenu?.anchor ?? null}
-        columnId={contextMenu?.columnId ?? ""}
-        columnType={contextMenu?.columnType ?? "text"}
-        isFirstColumn={contextMenu?.isFirstColumn ?? false}
-        onDeleteColumn={handleDeleteColumn}
-      />
-
-      <RowContextMenu
-        open={!!rowContextMenu}
-        onClose={() => setRowContextMenu(null)}
-        anchor={rowContextMenu?.anchor ?? null}
-        rowId={rowContextMenu?.rowId ?? ""}
-        onDeleteRow={handleDeleteRow}
-      />
-
-      <div 
-        className="flex shrink-0 items-center justify-between border-t border-gray-200 bg-white px-3"
-        style={{ height: 28 }}
-      >
-        <button
-          onClick={handleAddRow}
-          disabled={createRow.isPending}
-          className="flex items-center gap-1 text-[12px] text-gray-500 hover:text-gray-700 disabled:opacity-50"
-        >
-          <PlusIcon />
-          <span>Add...</span>
-        </button>
-        <span className="text-[12px] text-gray-400">
-          {data
-            ? `${data.rows.length} record${data.rows.length === 1 ? "" : "s"}`
-            : ""}
-        </span>
-      </div>
-    </div>
+          <GridToolbar
+            onAddRow={handleAddRow}
+            onBulkInsert={handleBulkInsert}
+            onClearAll={handleClearAll}
+            isAddingRow={mutations.createRow.isPending}
+            isBulkInserting={mutations.bulkInsert.isPending}
+            isClearing={mutations.clearAll.isPending}
+            recordCount={data?.rows.length ?? 0}
+          />
+        </div>
       </GridCellContext.Provider>
     </GridRowContext.Provider>
   );
