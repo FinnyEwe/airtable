@@ -202,8 +202,6 @@ export function AirtableGrid({
             onAddRow={handleAddRow}
             onAddColumn={handleAddColumn}
             onColumnContextMenu={handleColumnContextMenu}
-            isAddingRow={mutations.createRow.isPending}
-            isAddingColumn={mutations.createColumn.isPending}
           />
 
           <ColumnContextMenu
@@ -228,9 +226,6 @@ export function AirtableGrid({
             onAddRow={handleAddRow}
             onBulkInsert={handleBulkInsert}
             onClearAll={handleClearAll}
-            isAddingRow={mutations.createRow.isPending}
-            isBulkInserting={mutations.bulkInsert.isPending}
-            isClearing={mutations.clearAll.isPending}
             recordCount={data?.rows.length ?? 0}
           />
         </div>

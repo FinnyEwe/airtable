@@ -23,9 +23,33 @@ export const columnRouter = createTRPCRouter({
 
       const nextOrder = (lastColumn?.order ?? -1) + 1;
 
+      // Generate unique name if "Untitled" already exists
+      let columnName = input.name;
+      if (columnName === "Untitled") {
+        const existingColumns = await ctx.db.column.findMany({
+          where: { 
+            tableId: input.tableId,
+            name: { startsWith: "Untitled" }
+          },
+          select: { name: true },
+        });
+        
+        if (existingColumns.length > 0) {
+          const numbers = existingColumns
+            .map(c => {
+              const match = c.name.match(/^Untitled(?: (\d+))?$/);
+              return match ? (match[1] ? parseInt(match[1]) : 1) : 0;
+            })
+            .filter(n => n > 0);
+          
+          const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+          columnName = `Untitled ${maxNum + 1}`;
+        }
+      }
+
       return ctx.db.column.create({
         data: {
-          name: input.name,
+          name: columnName,
           type: input.type,
           order: nextOrder,
           tableId: input.tableId,

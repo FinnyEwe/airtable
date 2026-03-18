@@ -7,6 +7,8 @@ interface UseTableDataProps {
 }
 
 export function useTableData({ tableId, viewId, searchQuery }: UseTableDataProps) {
+  const utils = api.useUtils();
+  
   const { data, isLoading } = api.tableData.getTableData.useQuery(
     {
       tableId: tableId!,
@@ -17,44 +19,227 @@ export function useTableData({ tableId, viewId, searchQuery }: UseTableDataProps
   );
 
   const createRow = api.row.create.useMutation({
-    onSuccess: () => {
-      void api.useUtils().tableData.getTableData.invalidate();
+    onMutate: async (variables) => {
+      const queryKey = { tableId: tableId!, viewId, search: searchQuery?.trim() || undefined };
+      
+      await utils.tableData.getTableData.cancel(queryKey);
+      const previousData = utils.tableData.getTableData.getData(queryKey);
+      
+      utils.tableData.getTableData.setData(queryKey, (old) => {
+        if (!old) return old;
+        
+        const tempId = `temp-${Date.now()}`;
+        const newRow = {
+          id: tempId,
+          cells: old.columns.map(col => ({
+            id: `temp-cell-${col.id}`,
+            columnId: col.id,
+            value: null,
+            rowId: tempId,
+          })),
+        };
+        
+        return {
+          ...old,
+          rows: [...old.rows, newRow],
+        };
+      });
+      
+      return { previousData, queryKey };
+    },
+    onSuccess: (data, variables, context) => {
+      void utils.tableData.getTableData.invalidate(context?.queryKey);
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        utils.tableData.getTableData.setData(context.queryKey, context.previousData);
+      }
     },
   });
 
   const bulkInsert = api.row.bulkInsert.useMutation({
     onSuccess: () => {
-      void api.useUtils().tableData.getTableData.invalidate();
+      void utils.tableData.getTableData.invalidate();
     },
   });
 
   const clearAll = api.row.clearAll.useMutation({
-    onSuccess: () => {
-      void api.useUtils().tableData.getTableData.invalidate();
+    onMutate: async () => {
+      const queryKey = { tableId: tableId!, viewId, search: searchQuery?.trim() || undefined };
+      
+      await utils.tableData.getTableData.cancel(queryKey);
+      const previousData = utils.tableData.getTableData.getData(queryKey);
+      
+      utils.tableData.getTableData.setData(queryKey, (old) => 
+        old ? { ...old, rows: [] } : old
+      );
+      
+      return { previousData, queryKey };
+    },
+    onSuccess: (data, variables, context) => {
+      void utils.tableData.getTableData.invalidate(context?.queryKey);
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        utils.tableData.getTableData.setData(context.queryKey, context.previousData);
+      }
     },
   });
 
   const createColumn = api.column.create.useMutation({
-    onSuccess: () => {
-      void api.useUtils().tableData.getTableData.invalidate();
+    onMutate: async (variables) => {
+      const queryKey = { tableId: tableId!, viewId, search: searchQuery?.trim() || undefined };
+      
+      await utils.tableData.getTableData.cancel(queryKey);
+      const previousData = utils.tableData.getTableData.getData(queryKey);
+      
+      utils.tableData.getTableData.setData(queryKey, (old) => {
+        if (!old) return old;
+        
+        const tempId = `temp-${Date.now()}`;
+        const maxOrder = old.columns.length > 0 
+          ? Math.max(...old.columns.map(c => c.order)) 
+          : -1;
+        
+        const newColumn = {
+          id: tempId,
+          name: variables.name,
+          type: variables.type,
+          order: maxOrder + 1,
+          config: null,
+        };
+        
+        const updatedRows = old.rows.map(row => ({
+          ...row,
+          cells: [
+            ...row.cells,
+            {
+              id: `temp-cell-${row.id}-${tempId}`,
+              columnId: tempId,
+              value: null,
+              rowId: row.id,
+            },
+          ],
+        }));
+        
+        return {
+          ...old,
+          columns: [...old.columns, newColumn],
+          rows: updatedRows,
+        };
+      });
+      
+      return { previousData, queryKey };
+    },
+    onSuccess: (data, variables, context) => {
+      void utils.tableData.getTableData.invalidate(context?.queryKey);
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        utils.tableData.getTableData.setData(context.queryKey, context.previousData);
+      }
     },
   });
 
   const deleteColumn = api.column.delete.useMutation({
-    onSuccess: () => {
-      void api.useUtils().tableData.getTableData.invalidate();
+    onMutate: async (variables) => {
+      const queryKey = { tableId: tableId!, viewId, search: searchQuery?.trim() || undefined };
+      
+      await utils.tableData.getTableData.cancel(queryKey);
+      const previousData = utils.tableData.getTableData.getData(queryKey);
+      
+      utils.tableData.getTableData.setData(queryKey, (old) => {
+        if (!old) return old;
+        
+        return {
+          ...old,
+          columns: old.columns.filter(col => col.id !== variables.columnId),
+          rows: old.rows.map(row => ({
+            ...row,
+            cells: row.cells.filter(cell => cell.columnId !== variables.columnId),
+          })),
+        };
+      });
+      
+      return { previousData, queryKey };
+    },
+    onSuccess: (data, variables, context) => {
+      void utils.tableData.getTableData.invalidate(context?.queryKey);
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        utils.tableData.getTableData.setData(context.queryKey, context.previousData);
+      }
     },
   });
 
   const deleteRow = api.row.delete.useMutation({
-    onSuccess: () => {
-      void api.useUtils().tableData.getTableData.invalidate();
+    onMutate: async (variables) => {
+      const queryKey = { tableId: tableId!, viewId, search: searchQuery?.trim() || undefined };
+      
+      await utils.tableData.getTableData.cancel(queryKey);
+      const previousData = utils.tableData.getTableData.getData(queryKey);
+      
+      utils.tableData.getTableData.setData(queryKey, (old) => {
+        if (!old) return old;
+        
+        return {
+          ...old,
+          rows: old.rows.filter(row => row.id !== variables.rowId),
+        };
+      });
+      
+      return { previousData, queryKey };
+    },
+    onSuccess: (data, variables, context) => {
+      void utils.tableData.getTableData.invalidate(context?.queryKey);
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        utils.tableData.getTableData.setData(context.queryKey, context.previousData);
+      }
     },
   });
 
   const updateCell = api.cell.update.useMutation({
-    onSuccess: () => {
-      void api.useUtils().tableData.getTableData.invalidate();
+    onMutate: async (variables) => {
+      const queryKey = { tableId: tableId!, viewId, search: searchQuery?.trim() || undefined };
+      
+      await utils.tableData.getTableData.cancel(queryKey);
+      const previousData = utils.tableData.getTableData.getData(queryKey);
+      
+      utils.tableData.getTableData.setData(queryKey, (old) => {
+        if (!old) return old;
+        
+        return {
+          ...old,
+          rows: old.rows.map(row => {
+            if (row.id !== variables.rowId) return row;
+            
+            return {
+              ...row,
+              cells: row.cells.map(cell => {
+                if (cell.columnId !== variables.columnId) return cell;
+                
+                return {
+                  ...cell,
+                  value: variables.value,
+                };
+              }),
+            };
+          }),
+        };
+      });
+      
+      return { previousData, queryKey };
+    },
+    onSuccess: (data, variables, context) => {
+      void utils.tableData.getTableData.invalidate(context?.queryKey);
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        utils.tableData.getTableData.setData(context.queryKey, context.previousData);
+      }
     },
   });
 

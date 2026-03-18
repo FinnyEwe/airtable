@@ -19,8 +19,6 @@ interface GridTableProps {
     columnType: string,
     isFirstColumn: boolean,
   ) => void;
-  isAddingRow: boolean;
-  isAddingColumn: boolean;
 }
 
 export function GridTable({
@@ -32,8 +30,6 @@ export function GridTable({
   onAddRow,
   onAddColumn,
   onColumnContextMenu,
-  isAddingRow,
-  isAddingColumn,
 }: GridTableProps) {
   const columns = table.getAllColumns();
 
@@ -90,8 +86,7 @@ export function GridTable({
               >
                 <button
                   onClick={onAddColumn}
-                  disabled={isAddingColumn}
-                  className="flex h-full w-full items-center justify-center text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                  className="flex h-full w-full items-center justify-center text-gray-400 hover:text-gray-600"
                 >
                   <PlusIcon />
                 </button>
@@ -123,8 +118,7 @@ export function GridTable({
             >
               <button
                 onClick={onAddRow}
-                disabled={isAddingRow}
-                className="flex h-full w-full items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
+                className="flex h-full w-full items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                 aria-label="Insert new record in grid"
               >
                 <PlusIcon />
