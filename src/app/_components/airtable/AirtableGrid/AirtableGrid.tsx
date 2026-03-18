@@ -6,7 +6,7 @@ import {
   flexRender,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import { api } from "~/trpc/react";
 import { PlusIcon } from "../icons";
 import {
@@ -20,6 +20,12 @@ import { GroupHeaderRow } from "./GroupHeaderRow";
 import { GridDataRow } from "./GridDataRow";
 import { RowContextMenu } from "./RowContextMenu";
 import { useGridMutations } from "./useGridMutations";
+import { useKeyboardNavigation } from "./useKeyboardNavigation";
+import { useCellSelection } from "./useCellSelection";
+import type { ContextMenuState, RowContextMenuState } from "./types";
+import { COLUMN_WIDTHS } from "./constants";
+import { GridRowContext } from "./useGridRowContext";
+import { GridCellContext } from "./useGridCellContext";
 
 export function AirtableGrid({
   tableId,
@@ -34,16 +40,9 @@ export function AirtableGrid({
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(
     new Set(),
   );
-  const [contextMenu, setContextMenu] = useState<{
-    anchor: HTMLElement;
-    columnId: string;
-    columnType: string;
-    isFirstColumn: boolean;
-  } | null>(null);
-  const [rowContextMenu, setRowContextMenu] = useState<{
-    anchor: HTMLElement;
-    rowId: string;
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [rowContextMenu, setRowContextMenu] = useState<RowContextMenuState | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = api.tableData.getTableData.useQuery(
     {
@@ -54,10 +53,19 @@ export function AirtableGrid({
     { enabled: !!tableId },
   );
 
-  const { createRow, createColumn, deleteColumn, deleteRow } = useGridMutations({
+  const { createRow, createColumn, deleteColumn, deleteRow, updateCell } = useGridMutations({
     tableId,
     viewId,
   });
+
+  const {
+    selectedCell,
+    editingCell,
+    handleCellClick,
+    handleCellDoubleClick,
+    setSelectedCell,
+    setEditingCell,
+  } = useCellSelection(gridRef);
 
   const handleAddRow = () => {
     if (!tableId) return;
@@ -119,6 +127,11 @@ export function AirtableGrid({
     return buildDisplayItems(tableData, groups, collapsedGroupKeys);
   }, [tableData, data?.groups, collapsedGroupKeys]);
 
+  const dataColumns = useMemo(() => {
+    const hiddenSet = new Set(data?.hiddenColumnIds ?? []);
+    return (data?.columns ?? []).filter((col) => !hiddenSet.has(col.id));
+  }, [data?.columns, data?.hiddenColumnIds]);
+
   const toggleGroupCollapsed = (key: string) => {
     setCollapsedGroupKeys((prev) => {
       const next = new Set(prev);
@@ -156,6 +169,17 @@ export function AirtableGrid({
     setRowContextMenu(null);
   };
 
+  useKeyboardNavigation({
+    gridRef,
+    selectedCell,
+    editingCell,
+    displayItems,
+    dataColumns,
+    onCellSelect: setSelectedCell,
+    onStartEdit: setEditingCell,
+    onCancelEdit: () => setEditingCell(null),
+  });
+
   const columns = useMemo<ColumnDef<GridRow>[]>(() => {
     const checkboxCol: ColumnDef<GridRow> = {
       id: "checkbox",
@@ -184,7 +208,7 @@ export function AirtableGrid({
         </button>
       ),
       cell: () => null,
-      size: 48,
+      size: COLUMN_WIDTHS.CHECKBOX,
     };
 
     if (!data?.columns.length) return [checkboxCol];
@@ -196,7 +220,7 @@ export function AirtableGrid({
       id: col.id,
       accessorKey: col.id,
       header: () => <ColumnHeader type={col.type} label={col.name} />,
-      size: 180,
+      size: COLUMN_WIDTHS.DEFAULT,
     }));
 
     return [checkboxCol, ...dataCols];
@@ -217,21 +241,44 @@ export function AirtableGrid({
     );
   }
 
-  const hiddenSet = new Set(data?.hiddenColumnIds ?? []);
-  const dataColumns = (data?.columns ?? []).filter((col) => !hiddenSet.has(col.id));
+  const gridRowContextValue = useMemo(() => ({
+    dataColumns,
+    tableData,
+    selectedRows,
+    onRowSelect: handleRowSelect,
+    onRowContextMenu: handleRowContextMenu,
+  }), [dataColumns, tableData, selectedRows, handleRowSelect]);
+
+  const gridCellContextValue = useMemo(() => ({
+    selectedCell,
+    editingCell,
+    onCellClick: handleCellClick,
+    onCellDoubleClick: handleCellDoubleClick,
+    onCellUpdate: (rowId: string, columnId: string, value: string | null) => {
+      updateCell.mutate({ rowId, columnId, value });
+      setEditingCell(null);
+    },
+    onCancelEdit: () => setEditingCell(null),
+  }), [selectedCell, editingCell, handleCellClick, handleCellDoubleClick, updateCell, setEditingCell]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-white">
-      <div className="flex-1 overflow-auto">
-        <table className="border-collapse" style={{ tableLayout: "fixed" }}>
-          <colgroup>
-            {table.getAllColumns().map((col) => (
-              <col key={col.id} style={{ width: col.getSize() }} />
-            ))}
-            <col style={{ width: 48 }} />
-          </colgroup>
+    <GridRowContext.Provider value={gridRowContextValue}>
+      <GridCellContext.Provider value={gridCellContextValue}>
+        <div 
+          ref={gridRef}
+          tabIndex={0}
+          className="flex flex-1 flex-col overflow-hidden bg-white outline-none"
+        >
+          <div className="flex-1 overflow-auto">
+            <table className="border-collapse" style={{ tableLayout: "fixed" }}>
+              <colgroup>
+                {table.getAllColumns().map((col) => (
+                  <col key={col.id} style={{ width: col.getSize() }} />
+                ))}
+                <col style={{ width: COLUMN_WIDTHS.ADD_BUTTON }} />
+              </colgroup>
 
-          <thead>
+              <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header, idx) => (
@@ -268,7 +315,10 @@ export function AirtableGrid({
                     )}
                   </th>
                 ))}
-                <th className="h-[30px] w-[48px] border-b border-r border-gray-200 bg-[#f8f8f8] px-2 text-center">
+                <th 
+                  className="border-b border-r border-gray-200 bg-[#f8f8f8] px-2 text-center"
+                  style={{ height: 30, width: COLUMN_WIDTHS.ADD_BUTTON }}
+                >
                   <button
                     onClick={handleAddColumn}
                     disabled={createColumn.isPending}
@@ -294,22 +344,15 @@ export function AirtableGrid({
                   />
                 );
               }
-              return (
-                <GridDataRow
-                  key={item.row.id}
-                  row={item.row}
-                  dataColumns={dataColumns}
-                  tableData={tableData}
-                  isSelected={selectedRows.has(item.row.id)}
-                  onRowSelect={handleRowSelect}
-                  onRowContextMenu={handleRowContextMenu}
-                />
-              );
+              return <GridDataRow key={item.row.id} row={item.row} />;
             })}
 
             {/* Ghost row: add row */}
             <tr>
-              <td className="sticky left-0 z-10 h-[32px] border-b border-r border-gray-200 bg-white px-2 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]">
+              <td 
+                className="sticky left-0 z-10 border-b border-r border-gray-200 bg-white px-2 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                style={{ height: 32 }}
+              >
                 <button
                   onClick={handleAddRow}
                   disabled={createRow.isPending}
@@ -322,13 +365,17 @@ export function AirtableGrid({
               {columns.slice(1).map((col, i) => (
                 <td
                   key={col.id}
+                  style={{ height: 32 }}
                   className={[
-                    "h-[32px] border-b border-gray-200 bg-white",
+                    "border-b border-gray-200 bg-white",
                     i === columns.length - 2 ? "border-r border-gray-200" : "",
                   ].join(" ")}
                 />
               ))}
-              <td className="h-[32px] w-[48px] border-b-0" />
+              <td 
+                className="border-b-0" 
+                style={{ height: 32, width: COLUMN_WIDTHS.ADD_BUTTON }}
+              />
             </tr>
           </tbody>
         </table>
@@ -352,7 +399,10 @@ export function AirtableGrid({
         onDeleteRow={handleDeleteRow}
       />
 
-      <div className="flex h-[28px] shrink-0 items-center justify-between border-t border-gray-200 bg-white px-3">
+      <div 
+        className="flex shrink-0 items-center justify-between border-t border-gray-200 bg-white px-3"
+        style={{ height: 28 }}
+      >
         <button
           onClick={handleAddRow}
           disabled={createRow.isPending}
@@ -368,5 +418,7 @@ export function AirtableGrid({
         </span>
       </div>
     </div>
+      </GridCellContext.Provider>
+    </GridRowContext.Provider>
   );
 }

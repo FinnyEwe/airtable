@@ -1,31 +1,20 @@
 "use client";
 
 import type { GridRow } from "../utils/displayItems";
-
-interface DataColumn {
-  id: string;
-  name: string;
-  type: string;
-}
+import { EditableCell } from "./EditableCell";
+import { useGridRowContext } from "./useGridRowContext";
+import { useGridCellContext } from "./useGridCellContext";
 
 interface GridDataRowProps {
   row: GridRow;
-  dataColumns: DataColumn[];
-  tableData: GridRow[];
-  isSelected: boolean;
-  onRowSelect: (rowId: string) => void;
-  onRowContextMenu?: (e: React.MouseEvent<HTMLTableRowElement>, rowId: string) => void;
 }
 
-export function GridDataRow({
-  row,
-  dataColumns,
-  tableData,
-  isSelected,
-  onRowSelect,
-  onRowContextMenu,
-}: GridDataRowProps) {
+export function GridDataRow({ row }: GridDataRowProps) {
+  const { dataColumns, tableData, selectedRows, onRowSelect, onRowContextMenu } = useGridRowContext();
+  const { selectedCell, editingCell, onCellClick, onCellDoubleClick, onCellUpdate, onCancelEdit } = useGridCellContext();
+  
   const rowIndex = tableData.findIndex((r) => r.id === row.id) + 1;
+  const isSelected = selectedRows.has(row.id);
 
   return (
     <tr
@@ -60,21 +49,15 @@ export function GridDataRow({
           </button>
         </div>
       </td>
-      {dataColumns.map((col) => {
-        const value = row[col.id];
-        const isNumber = col.type === "number";
-        return (
-          <td
-            key={col.id}
-            className={[
-              "h-[32px] border-b border-gray-200 px-2 text-[13px] text-gray-700 border-r",
-              isNumber ? "text-right" : "text-left",
-            ].join(" ")}
-          >
-            {value ?? ""}
-          </td>
-        );
-      })}
+      {dataColumns.map((col) => (
+        <EditableCell
+          key={col.id}
+          rowId={row.id}
+          columnId={col.id}
+          value={row[col.id]}
+          isNumber={col.type === "number"}
+        />
+      ))}
       <td className="w-[48px] border-b-0 bg-white" />
     </tr>
   );

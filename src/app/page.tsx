@@ -4,6 +4,6 @@ import { BasesView } from "./_components/BasesView";
 
 export default async function HomePage() {
   const session = await auth();
-  if (!session) redirect("/api/auth/signin");
+  if (!session) redirect("/signin");
   return <BasesView />;
 }

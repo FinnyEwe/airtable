@@ -5,6 +5,7 @@ import { tableDataRouter } from "~/server/api/routers/tableData";
 import { viewRouter } from "~/server/api/routers/view";
 import { columnRouter } from "~/server/api/routers/column";
 import { rowRouter } from "~/server/api/routers/row";
+import { cellRouter } from "~/server/api/routers/cell";
 
 /**
  * This is the primary router for your server.
@@ -18,6 +19,7 @@ export const appRouter = createTRPCRouter({
     view: viewRouter,
     column: columnRouter,
     row: rowRouter,
+    cell: cellRouter,
 });
 
 // export type definition of API

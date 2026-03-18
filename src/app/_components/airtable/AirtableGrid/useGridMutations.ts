@@ -203,5 +203,59 @@ export function useGridMutations({ tableId, viewId }: UseGridMutationsProps) {
     },
   });
 
-  return { createRow, createColumn, deleteColumn, deleteRow };
+  const updateCell = api.cell.update.useMutation({
+    onMutate: async ({ rowId, columnId, value }) => {
+      await utils.tableData.getTableData.cancel({
+        tableId: tableId!,
+        viewId,
+      });
+
+      const previousData = utils.tableData.getTableData.getData({
+        tableId: tableId!,
+        viewId,
+      });
+
+      utils.tableData.getTableData.setData(
+        { tableId: tableId!, viewId },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            rows: old.rows.map((row) => {
+              if (row.id !== rowId) return row;
+              const existingCell = row.cells.find((c) => c.columnId === columnId);
+              if (existingCell) {
+                return {
+                  ...row,
+                  cells: row.cells.map((c) =>
+                    c.columnId === columnId ? { ...c, value } : c
+                  ),
+                };
+              } else {
+                return {
+                  ...row,
+                  cells: [
+                    ...row.cells,
+                    { id: `temp-${Date.now()}`, columnId, value, rowId },
+                  ],
+                };
+              }
+            }),
+          };
+        },
+      );
+
+      return { previousData };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousData) {
+        utils.tableData.getTableData.setData(
+          { tableId: tableId!, viewId },
+          context.previousData,
+        );
+      }
+    },
+  });
+
+  return { createRow, createColumn, deleteColumn, deleteRow, updateCell };
 }
