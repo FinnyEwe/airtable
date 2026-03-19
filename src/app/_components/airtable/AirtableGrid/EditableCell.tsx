@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useGridCellContext } from "./useGridCellContext";
+import { useSearchContext } from "./SearchContext";
 
 interface EditableCellProps {
   rowId: string;
@@ -17,6 +18,7 @@ export function EditableCell({
   isNumber,
 }: EditableCellProps) {
   const { selectedCell, editingCell, onCellClick, onCellDoubleClick, onCellUpdate, onCancelEdit } = useGridCellContext();
+  const searchContext = useSearchContext();
   
   const isEditing = editingCell?.rowId === rowId && editingCell?.columnId === columnId;
   const isSelected = selectedCell?.rowId === rowId && selectedCell?.columnId === columnId;
@@ -62,6 +64,9 @@ export function EditableCell({
     );
   }
 
+  const displayValue = String(value ?? "");
+  const content = searchContext.highlightMatches(displayValue, rowId, columnId);
+
   return (
     <td
       onClick={() => onCellClick(rowId, columnId)}
@@ -75,7 +80,7 @@ export function EditableCell({
         isSelected ? "ring-2 ring-inset ring-blue-500 bg-white" : "hover:bg-gray-50",
       ].join(" ")}
     >
-      {String(value ?? "")}
+      {content}
     </td>
   );
 }

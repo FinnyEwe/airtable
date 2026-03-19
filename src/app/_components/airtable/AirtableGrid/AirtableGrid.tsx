@@ -13,16 +13,16 @@ import { useRecordData } from "./useRecordData";
 import { useGridState } from "./useGridState";
 import { useGridColumns } from "./useGridColumns";
 import { VirtualizedGridTable, type VirtualizedGridTableHandle } from "./VirtualizedGridTable";
-import { GridToolbar } from "./GridToolbar";
+import { GridToolbar as GridFooterToolbar } from "./GridToolbar";
+import { GridToolbar as GridTopToolbar } from "../GridToolbar";
+import { SearchProvider } from "./SearchContext";
 
 export function AirtableGrid({
   tableId,
   viewId,
-  searchQuery = "",
 }: {
   tableId?: string;
   viewId?: string;
-  searchQuery?: string;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
   const virtualizerRef = useRef<VirtualizedGridTableHandle>(null);
@@ -50,10 +50,11 @@ export function AirtableGrid({
     handleRowContextMenu,
   } = useGridState();
 
+  // Don't pass searchQuery to useRecordData - we want ALL records
   const { data, isLoading, totalCount, hasNextPage, isFetchingNextPage, mutations } = useRecordData({
     tableId,
     viewId,
-    searchQuery,
+    searchQuery: undefined, // Changed from searchQuery to undefined
     virtualizer: virtualizerRef.current?.virtualizer,
     setSelectedCell,
     setEditingCell,
@@ -147,7 +148,7 @@ export function AirtableGrid({
     data: tableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getRowId: (row) => row.id,
+    getRowId: (row: GridRow) => row.id,
   });
 
   useKeyboardNavigation({
@@ -190,59 +191,65 @@ export function AirtableGrid({
   }
 
   return (
-    <GridRowContext.Provider value={gridRowContextValue}>
-      <GridCellContext.Provider value={gridCellContextValue}>
-        <div 
-          ref={gridRef}
-          tabIndex={0}
-          className="flex flex-1 flex-col overflow-hidden bg-white outline-none"
-        >
-          <VirtualizedGridTable
-            ref={virtualizerRef}
-            table={table}
-            displayItems={displayItems}
-            dataColumns={dataColumns}
-            collapsedGroupKeys={collapsedGroupKeys}
-            onToggleGroupCollapse={toggleGroupCollapsed}
-            onAddRow={handleAddRow}
-            onAddColumn={handleAddColumn}
-            onColumnContextMenu={handleColumnContextMenu}
-            totalCount={totalCount}
-          />
+    <SearchProvider tableData={tableData} dataColumns={dataColumns}>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <GridTopToolbar tableId={tableId} viewId={viewId} />
+        
+        <GridRowContext.Provider value={gridRowContextValue}>
+          <GridCellContext.Provider value={gridCellContextValue}>
+            <div 
+              ref={gridRef}
+              tabIndex={0}
+              className="flex flex-1 flex-col overflow-hidden bg-white outline-none"
+            >
+              <VirtualizedGridTable
+                ref={virtualizerRef}
+                table={table}
+                displayItems={displayItems}
+                dataColumns={dataColumns}
+                collapsedGroupKeys={collapsedGroupKeys}
+                onToggleGroupCollapse={toggleGroupCollapsed}
+                onAddRow={handleAddRow}
+                onAddColumn={handleAddColumn}
+                onColumnContextMenu={handleColumnContextMenu}
+                totalCount={totalCount}
+              />
 
-          <ColumnContextMenu
-            open={!!contextMenu}
-            onClose={() => setContextMenu(null)}
-            anchor={contextMenu?.anchor ?? null}
-            columnId={contextMenu?.columnId ?? ""}
-            columnType={contextMenu?.columnType ?? "text"}
-            isFirstColumn={contextMenu?.isFirstColumn ?? false}
-            onDeleteColumn={handleDeleteColumn}
-          />
+              <ColumnContextMenu
+                open={!!contextMenu}
+                onClose={() => setContextMenu(null)}
+                anchor={contextMenu?.anchor ?? null}
+                columnId={contextMenu?.columnId ?? ""}
+                columnType={contextMenu?.columnType ?? "text"}
+                isFirstColumn={contextMenu?.isFirstColumn ?? false}
+                onDeleteColumn={handleDeleteColumn}
+              />
 
-          <RowContextMenu
-            open={!!rowContextMenu}
-            onClose={() => setRowContextMenu(null)}
-            anchor={rowContextMenu?.anchor ?? null}
-            rowId={rowContextMenu?.rowId ?? ""}
-            onDeleteRow={handleDeleteRow}
-          />
+              <RowContextMenu
+                open={!!rowContextMenu}
+                onClose={() => setRowContextMenu(null)}
+                anchor={rowContextMenu?.anchor ?? null}
+                rowId={rowContextMenu?.rowId ?? ""}
+                onDeleteRow={handleDeleteRow}
+              />
 
-          <GridToolbar
-            onAddRow={handleAddRow}
-            onBulkInsert={handleBulkInsert}
-            onClearAll={handleClearAll}
-            recordCount={totalCount ?? data?.rows.length ?? 0}
-            isBulkInserting={mutations.bulkInsert.isPending}
-          />
-          
-          {isFetchingNextPage && (
-            <div className="fixed bottom-4 right-4 rounded bg-blue-500 px-3 py-1 text-xs text-white shadow-lg">
-              Loading more rows...
+              <GridFooterToolbar
+                onAddRow={handleAddRow}
+                onBulkInsert={handleBulkInsert}
+                onClearAll={handleClearAll}
+                recordCount={totalCount ?? data?.rows.length ?? 0}
+                isBulkInserting={mutations.bulkInsert.isPending}
+              />
+              
+              {isFetchingNextPage && (
+                <div className="fixed bottom-4 right-4 rounded bg-blue-500 px-3 py-1 text-xs text-white shadow-lg">
+                  Loading more rows...
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </GridCellContext.Provider>
-    </GridRowContext.Provider>
+          </GridCellContext.Provider>
+        </GridRowContext.Provider>
+      </div>
+    </SearchProvider>
   );
 }

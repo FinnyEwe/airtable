@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   ChevronDownIcon,
+  ChevronUpIcon,
   GridViewIcon,
   EyeOffIcon,
   FilterIcon,
@@ -12,11 +13,14 @@ import {
   ExpandIcon,
   ShareIcon,
   SearchIcon,
+  XIcon,
 } from "./icons";
 import { GroupDropdown } from "./GroupDropdown";
 import { HideColumnsDropdown } from "./HideColumnsDropdown/HideColumnsDropdown";
 import { FilterDropdown } from "./FilterDropdown/FilterDropdown";
 import { SortDropdown } from "./SortDropdown/SortDropdown";
+import { Dropdown } from "~/app/_components/ui/Dropdown";
+import { useSearchContext } from "./AirtableGrid/SearchContext";
 
 const toolbarButtons = [
   { icon: <EyeOffIcon />, label: "Hide fields", key: "hide" },
@@ -30,80 +34,32 @@ const toolbarButtons = [
 interface GridToolbarProps {
   tableId?: string;
   viewId?: string;
-  searchQuery?: string;
-  onSearchChange?: (value: string) => void;
 }
 
-export function GridToolbar({
-  tableId,
-  viewId,
-  searchQuery = "",
-  onSearchChange,
-}: GridToolbarProps) {
+export function GridToolbar({ tableId, viewId }: GridToolbarProps) {
+  const searchContext = useSearchContext();
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
   const [hideColumnsDropdownOpen, setHideColumnsDropdownOpen] = useState(false);
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
-  const [searchExpanded, setSearchExpanded] = useState(false);
-  const [localSearch, setLocalSearch] = useState(searchQuery);
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   const groupButtonRef = useRef<HTMLButtonElement>(null);
   const hideColumnsButtonRef = useRef<HTMLButtonElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const sortButtonRef = useRef<HTMLButtonElement>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setLocalSearch(searchQuery);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    if (searchExpanded) {
+    if (isSearchDropdownOpen) {
       searchInputRef.current?.focus();
     }
-  }, [searchExpanded]);
+  }, [isSearchDropdownOpen]);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined
-  );
-  const handleSearchChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const v = e.target.value;
-      setLocalSearch(v);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => onSearchChange?.(v), 300);
-    },
-    [onSearchChange]
-  );
-
-  const handleSearchBlur = useCallback(() => {
-    if (debounceRef.current !== undefined) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = undefined;
-    }
-    onSearchChange?.(localSearch);
-  }, [localSearch, onSearchChange]);
-
-  useEffect(
-    () => () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    },
-    []
-  );
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (
-        searchExpanded &&
-        searchContainerRef.current &&
-        !searchContainerRef.current.contains(e.target as Node)
-      ) {
-        setSearchExpanded(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [searchExpanded]);
+  const handleSearchClear = () => {
+    searchContext.setSearchQuery("");
+    setIsSearchDropdownOpen(false);
+  };
 
   return (
     <div className="flex h-[37px] shrink-0 items-center border-b border-gray-200 bg-white px-3">
@@ -203,45 +159,87 @@ export function GridToolbar({
       <div className="mx-1 h-4 w-px bg-gray-200" />
 
       {/* Search */}
-      <div ref={searchContainerRef} className="flex items-center">
-        {searchExpanded && tableId && viewId ? (
-          <div className="flex items-center gap-1 rounded border border-gray-200 bg-white py-0.5 pl-2 pr-1 shadow-sm">
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={localSearch}
-              onChange={handleSearchChange}
-              onBlur={handleSearchBlur}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setSearchExpanded(false);
-                  setLocalSearch(searchQuery);
-                }
-              }}
-              placeholder="Search..."
-              className="w-40 border-0 bg-transparent py-1 text-xs text-gray-700 placeholder-gray-400 outline-none"
-            />
+      <button
+        ref={searchButtonRef}
+        onClick={() => setIsSearchDropdownOpen(!isSearchDropdownOpen)}
+        className={`flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100 ${
+          searchContext.searchQuery ? "bg-gray-100" : ""
+        }`}
+        aria-label="Search"
+      >
+        <SearchIcon />
+      </button>
+
+      <Dropdown
+        open={isSearchDropdownOpen}
+        onClose={() => {
+          setIsSearchDropdownOpen(false);
+          if (!searchContext.searchQuery) {
+            searchContext.setSearchQuery("");
+          }
+        }}
+        anchor={searchButtonRef.current}
+        placement="bottom-end"
+        width={420}
+        noScroll
+        content={(
+          <div className="flex items-center gap-2 px-2 py-2">
+            {/* Search input */}
+            <div className="flex flex-1 items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1">
+              <span className="text-gray-400">
+                <SearchIcon />
+              </span>
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Find"
+                className="w-20 flex-1 border-0 bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
+                value={searchContext.searchQuery}
+                onChange={(e) => searchContext.setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Search result counter and navigation */}
+            {searchContext.searchQuery && searchContext.totalMatches > 0 && (
+              <>
+                <span className="whitespace-nowrap text-sm text-gray-600">
+                  {searchContext.currentMatchIndex + 1} of {searchContext.totalMatches}
+                </span>
+                <button
+                  onClick={searchContext.navigatePrev}
+                  disabled={searchContext.currentMatchIndex === 0}
+                  className="flex h-6 w-6 items-center justify-center rounded text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                  aria-label="Previous result"
+                >
+                  <ChevronUpIcon />
+                </button>
+                <button
+                  onClick={searchContext.navigateNext}
+                  disabled={searchContext.currentMatchIndex >= searchContext.totalMatches - 1}
+                  className="flex h-6 w-6 items-center justify-center rounded text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                  aria-label="Next result"
+                >
+                  <ChevronDownIcon />
+                </button>
+              </>
+            )}
+
+            {/* Ask Omni button */}
+            <button className="whitespace-nowrap rounded-md bg-gray-900 px-3 py-1 text-sm font-medium text-white hover:bg-gray-800">
+              Ask Omni
+            </button>
+
+            {/* Close button */}
             <button
-              type="button"
-              className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100"
-              aria-label="Search"
+              onClick={handleSearchClear}
+              className="flex h-6 w-6 items-center justify-center rounded text-gray-600 hover:bg-gray-100"
+              aria-label="Close search"
             >
-              <SearchIcon />
+              <XIcon />
             </button>
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => tableId && viewId && setSearchExpanded(true)}
-            className={`flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100 ${
-              searchQuery ? "bg-gray-100" : ""
-            }`}
-            aria-label="Search"
-          >
-            <SearchIcon />
-          </button>
         )}
-      </div>
+      />
     </div>
   );
 }
