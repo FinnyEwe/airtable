@@ -18,9 +18,7 @@ export function SortDropdown({
   isOpen,
   onClose,
 }: SortDropdownProps) {
-  if (!tableId) return null;
-
-  const sortDropdown = useSortDropdown({ tableId, viewId, isOpen });
+  const sortDropdown = useSortDropdown({ tableId: tableId ?? "", viewId, isOpen });
   const {
     searchQuery,
     setSearchQuery,
@@ -40,6 +38,8 @@ export function SortDropdown({
     handleRemoveSort,
     handleDirectionSelect,
   } = sortDropdown;
+
+  if (!tableId) return null;
 
   const showLevelsView =
     sortLevels.length > 0 || fieldPickerRowIndex !== null;

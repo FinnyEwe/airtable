@@ -8,7 +8,7 @@ import {
   SearchIcon,
   GearIcon,
   GridViewIcon,
-  UsersIcon,
+  UsersThreeIcon,
 } from "./icons";
 
 interface ViewSidebarProps {

@@ -29,8 +29,13 @@ export function useTableData({ tableId, viewId, searchQuery }: UseTableDataProps
         if (!old) return old;
         
         const tempId = `temp-${Date.now()}`;
+        const maxOrder = old.rows.length > 0 
+          ? Math.max(...old.rows.map(r => r.order)) 
+          : -1;
+        
         const newRow = {
           id: tempId,
+          order: maxOrder + 1,
           cells: old.columns.map(col => ({
             id: `temp-cell-${col.id}`,
             columnId: col.id,
@@ -103,8 +108,8 @@ export function useTableData({ tableId, viewId, searchQuery }: UseTableDataProps
         
         const newColumn = {
           id: tempId,
-          name: variables.name,
-          type: variables.type,
+          name: variables.name ?? "Untitled",
+          type: variables.type ?? "text",
           order: maxOrder + 1,
           config: null,
         };

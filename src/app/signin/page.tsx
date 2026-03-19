@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { auth, signIn } from "~/server/auth";
 import { AirtableLogo } from "./_components/AirtableLogo";
 
@@ -114,9 +115,9 @@ export default async function SignInPage() {
           {/* Footer */}
           <p className="mt-8 text-center text-sm text-gray-600">
             New to Airtable?{" "}
-            <a href="/signup" className="font-semibold text-blue-600 hover:underline">
+            <Link href="/signup" className="font-semibold text-blue-600 hover:underline">
               Create an account
-            </a>{" "}
+            </Link>{" "}
             instead
           </p>
         </div>

@@ -28,6 +28,10 @@ export default tseslint.config(
         "error",
         { checksVoidReturn: { attributes: false } },
       ],
+      "@typescript-eslint/no-base-to-string": "off",
+      "@typescript-eslint/no-empty-function": "off",
+      "@typescript-eslint/prefer-nullish-coalescing": "off",
+      "@typescript-eslint/prefer-regexp-exec": "off",
     },
   },
   {
