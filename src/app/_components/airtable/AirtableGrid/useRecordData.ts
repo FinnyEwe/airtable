@@ -31,6 +31,28 @@ export function useRecordData({
   const tempToRealIdRef = useRef<Map<string, string>>(new Map());
   const pendingCellUpdatesRef = useRef<Map<string, Array<{ columnId: string; value: string | null }>>>(new Map());
 
+  // Fetch view data to get filters and sorts
+  const { data: viewData } = api.view.getById.useQuery(
+    { viewId: viewId! },
+    { enabled: !!viewId }
+  );
+
+  // Use view's filters and sorts if available, otherwise use props
+  const activeFilters = viewId && viewData?.filters 
+    ? viewData.filters.map(f => ({
+        columnId: f.columnId,
+        operator: f.operator,
+        value: f.value,
+      }))
+    : filters;
+
+  const activeSorts = viewId && viewData?.sorts
+    ? viewData.sorts.map(s => ({
+        columnId: s.columnId,
+        direction: s.direction as "asc" | "desc",
+      }))
+    : sorts;
+
   // Infinite query with keyset pagination
   const {
     data,
@@ -41,8 +63,8 @@ export function useRecordData({
   } = api.record.list.useInfiniteQuery(
     {
       tableId: tableId!,
-      filters,
-      sorts,
+      filters: activeFilters,
+      sorts: activeSorts,
       search: searchQuery?.trim() || undefined,
     },
     {
@@ -91,7 +113,7 @@ export function useRecordData({
 
   const createRecord = api.record.create.useMutation({
     onMutate: async (variables) => {
-      const queryKey = { tableId: tableId!, filters, sorts, search: searchQuery?.trim() || undefined };
+      const queryKey = { tableId: tableId!, filters: activeFilters, sorts: activeSorts, search: searchQuery?.trim() || undefined };
       
       // 1. CANCEL IN-FLIGHT QUERIES (prevent race conditions)
       await utils.record.list.cancel(queryKey);
@@ -226,7 +248,7 @@ export function useRecordData({
 
   const updateCell = api.record.updateCell.useMutation({
     onMutate: async (variables) => {
-      const queryKey = { tableId: tableId!, filters, sorts, search: searchQuery?.trim() || undefined };
+      const queryKey = { tableId: tableId!, filters: activeFilters, sorts: activeSorts, search: searchQuery?.trim() || undefined };
       
       // If this is a temp record, queue the update and update cache optimistically
       if (variables.rowId.startsWith('temp-')) {
@@ -302,7 +324,7 @@ export function useRecordData({
 
   const deleteRecord = api.record.delete.useMutation({
     onMutate: async (variables) => {
-      const queryKey = { tableId: tableId!, filters, sorts, search: searchQuery?.trim() || undefined };
+      const queryKey = { tableId: tableId!, filters: activeFilters, sorts: activeSorts, search: searchQuery?.trim() || undefined };
       
       await utils.record.list.cancel(queryKey);
       const previousData = utils.record.list.getInfiniteData(queryKey);
@@ -342,7 +364,7 @@ export function useRecordData({
 
   const clearData = api.record.clearData.useMutation({
     onMutate: async () => {
-      const queryKey = { tableId: tableId!, filters, sorts, search: searchQuery?.trim() || undefined };
+      const queryKey = { tableId: tableId!, filters: activeFilters, sorts: activeSorts, search: searchQuery?.trim() || undefined };
       
       await utils.record.list.cancel(queryKey);
       const previousData = utils.record.list.getInfiniteData(queryKey);

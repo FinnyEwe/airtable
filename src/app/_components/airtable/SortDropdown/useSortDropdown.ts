@@ -73,13 +73,8 @@ export function useSortDropdown({
     onMutate: async (newSorts) => {
       if (!viewId) return;
       await utils.view.getById.cancel({ viewId });
-      await utils.tableData.getTableData.cancel({ tableId, viewId });
 
       const previousView = utils.view.getById.getData({ viewId });
-      const previousTableData = utils.tableData.getTableData.getData({
-        tableId,
-        viewId,
-      });
 
       const newSortsFormatted = newSorts.sorts.map((s, i) => ({
         columnId: s.columnId,
@@ -100,58 +95,23 @@ export function useSortDropdown({
         };
       });
 
-      if (previousTableData) {
-        const viewGroups = previousView?.groups ?? [];
-        const sortOrder = [
-          ...viewGroups.map((g) => ({
-            columnId: g.columnId,
-            direction: g.direction,
-          })),
-          ...newSortsFormatted,
-        ];
-        const sortedRows =
-          sortOrder.length > 0
-            ? [...previousTableData.rows].sort((a, b) => {
-                for (const sort of sortOrder) {
-                  const aVal =
-                    a.cells.find((c) => c.columnId === sort.columnId)?.value ??
-                    "";
-                  const bVal =
-                    b.cells.find((c) => c.columnId === sort.columnId)?.value ??
-                    "";
-                  const cmp = String(aVal).localeCompare(String(bVal));
-                  if (cmp !== 0) return sort.direction === "asc" ? cmp : -cmp;
-                }
-                return 0;
-              })
-            : [...previousTableData.rows].sort((a, b) => a.order - b.order);
-        utils.tableData.getTableData.setData({ tableId, viewId }, {
-          ...previousTableData,
-          rows: sortedRows,
-        });
-      }
-
-      return { previousView, previousTableData };
+      return { previousView };
     },
     onSuccess: (updatedView) => {
       if (viewId) {
         utils.view.getById.setData({ viewId }, updatedView);
       }
-      void utils.tableData.getTableData.invalidate({ tableId, viewId });
+      // Invalidate record.list to refetch with new sorts
+      void utils.record.list.invalidate();
     },
     onError: (_err, _variables, context) => {
       if (context?.previousView && viewId) {
         utils.view.getById.setData({ viewId }, context.previousView);
       }
-      if (context?.previousTableData && viewId) {
-        utils.tableData.getTableData.setData(
-          { tableId, viewId },
-          context.previousTableData
-        );
-      }
     },
     onSettled: () => {
-      void utils.tableData.getTableData.invalidate({ tableId, viewId });
+      // Invalidate record.list to ensure data is fresh
+      void utils.record.list.invalidate();
     },
   });
 

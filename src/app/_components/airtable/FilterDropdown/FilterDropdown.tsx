@@ -347,20 +347,26 @@ export function FilterDropdown({
   onClose,
 }: FilterDropdownProps) {
   const utils = api.useUtils();
-  const { data } = api.tableData.getTableData.useQuery(
+  
+  // Get columns from tableData (metadata only)
+  const { data: tableData } = api.tableData.getTableData.useQuery(
     { tableId: tableId!, viewId },
     { enabled: !!tableId && isOpen }
+  );
+
+  // Get filters from view data
+  const { data: viewData } = api.view.getById.useQuery(
+    { viewId: viewId! },
+    { enabled: !!viewId && isOpen }
   );
 
   const updateFilters = api.view.updateFilters.useMutation({
     onMutate: async (newFilters) => {
       if (!tableId || !viewId) return;
-      await utils.tableData.getTableData.cancel({ tableId, viewId });
-      const previous = utils.tableData.getTableData.getData({
-        tableId,
-        viewId,
-      });
-      utils.tableData.getTableData.setData({ tableId, viewId }, (old) => {
+      // Optimistic update for view.getById cache (used by filter dropdown UI)
+      await utils.view.getById.cancel({ viewId });
+      const previous = utils.view.getById.getData({ viewId });
+      utils.view.getById.setData({ viewId }, (old) => {
         if (!old) return old;
         return {
           ...old,
@@ -376,23 +382,18 @@ export function FilterDropdown({
       return { previous };
     },
     onError: (_err, _variables, context) => {
-      if (context?.previous && tableId && viewId) {
-        utils.tableData.getTableData.setData(
-          { tableId, viewId },
-          context.previous
-        );
+      if (context?.previous && viewId) {
+        utils.view.getById.setData({ viewId }, context.previous);
       }
     },
     onSettled: () => {
-      void utils.tableData.getTableData.invalidate({
-        tableId: tableId!,
-        viewId,
-      });
+      // Invalidate record.list to refetch with new filters
+      void utils.record.list.invalidate();
     },
   });
 
-  const columns = (data?.columns ?? []).sort((a, b) => a.order - b.order);
-  const filters = (data?.filters ?? []).sort((a, b) => a.order - b.order);
+  const columns = (tableData?.columns ?? []).sort((a, b) => a.order - b.order);
+  const filters = (viewData?.filters ?? []).sort((a, b) => a.order - b.order);
 
   const handleFiltersChange = useCallback(
     (next: ViewFilterRef[]) => {

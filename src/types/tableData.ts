@@ -54,7 +54,7 @@ export const viewFilterRefSchema = z.object({
 
 export const getTableDataOutputSchema = z.object({
     columns:         z.array(columnSchema),
-    rows:            z.array(rowSchema),
+    rows:            z.array(rowSchema).optional().default([]),
     groups:          z.array(viewGroupRefSchema),
     hiddenColumnIds: z.array(z.string().cuid()),
     filters:         z.array(viewFilterRefSchema),
