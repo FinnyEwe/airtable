@@ -5,107 +5,9 @@ import {
     getTableDataOutputSchema,
 } from "~/types/tableData";
 
-async function getSortedRowIds(
-    db: { $queryRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown> },
-    rowIds: string[],
-    sortOrder: { columnId: string; direction: string }[],
-): Promise<{ id: string }[]> {
-    if (rowIds.length === 0 || sortOrder.length === 0) return [];
-
-    const joinClauses: string[] = [];
-    const orderByParts: string[] = [];
-    const params: unknown[] = [];
-    let paramIndex = 1;
-
-    for (let i = 0; i < sortOrder.length; i++) {
-        const s = sortOrder[i]!;
-        const dir = s.direction === "desc" ? "DESC" : "ASC";
-        joinClauses.push(`LEFT JOIN "Cell" c${i} ON c${i}."rowId" = r.id AND c${i}."columnId" = $${paramIndex}`);
-        params.push(s.columnId);
-        paramIndex++;
-        orderByParts.push(`COALESCE(c${i}.value, '') ${dir} NULLS LAST`);
-    }
-    orderByParts.push('r."order" ASC');
-
-    const query = `
-        SELECT r.id
-        FROM "Row" r
-        ${joinClauses.join("\n        ")}
-        WHERE r.id = ANY($${paramIndex}::text[])
-        ORDER BY ${orderByParts.join(", ")}
-    `;
-    params.push(rowIds);
-
-    const result = await db.$queryRawUnsafe(query, ...params);
-    return result as { id: string }[];
-}
-
-function buildFilterWhere(filter: {
-    columnId: string;
-    operator: string;
-    value: string | null;
-}): Prisma.RowWhereInput {
-    switch (filter.operator) {
-        case "contains":
-            return {
-                cells: {
-                    some: {
-                        columnId: filter.columnId,
-                        value: { contains: filter.value ?? "", mode: "insensitive" },
-                    },
-                },
-            };
-        case "not_contains":
-            return {
-                NOT: {
-                    cells: {
-                        some: {
-                            columnId: filter.columnId,
-                            value: { contains: filter.value ?? "", mode: "insensitive" },
-                        },
-                    },
-                },
-            };
-        case "equals":
-            return {
-                cells: {
-                    some: { columnId: filter.columnId, value: filter.value },
-                },
-            };
-        case "not_equals":
-            return {
-                NOT: {
-                    cells: {
-                        some: { columnId: filter.columnId, value: filter.value },
-                    },
-                },
-            };
-        case "is_empty":
-            return {
-                OR: [
-                    { cells: { none: { columnId: filter.columnId } } },
-                    { cells: { some: { columnId: filter.columnId, value: null } } },
-                    { cells: { some: { columnId: filter.columnId, value: "" } } },
-                ],
-            };
-        case "is_not_empty":
-            return {
-                cells: {
-                    some: {
-                        columnId: filter.columnId,
-                        value: { not: null },
-                        AND: { value: { not: "" } },
-                    },
-                },
-            };
-        default:
-            return {};
-    }
-}
-
 export const tableDataRouter = createTRPCRouter({
     /**
-     * Returns all columns (ordered) and rows with their cells for a table.
+     * Returns all columns (ordered) and rows with their JSONB data for a table.
      * When a viewId is provided, the view's filters, sorts, and search are applied.
      */
     getTableData: publicProcedure
@@ -138,70 +40,121 @@ export const tableDataRouter = createTRPCRouter({
                 }
             }
 
+            const columns = await ctx.db.column.findMany({
+                where: { tableId: input.tableId },
+                orderBy: { order: "asc" },
+                select: {
+                    id:     true,
+                    name:   true,
+                    type:   true,
+                    order:  true,
+                    config: true,
+                },
+            });
+
             const search = input.search?.trim();
-            const andConditions: Prisma.RowWhereInput[] = [
-                ...viewFilters.map((f) => buildFilterWhere(f)),
-                ...(search
-                    ? [
-                          {
-                              cells: {
-                                  some: {
-                                      value: { contains: search, mode: "insensitive" as const },
-                                  },
-                              },
-                          },
-                      ]
-                    : []),
-            ].filter((c) => Object.keys(c).length > 0);
+            
+            // Build WHERE conditions
+            const whereConditions: string[] = [`"tableId" = '${input.tableId}'`];
+            const whereParams: unknown[] = [];
+            
+            for (const filter of viewFilters) {
+                const { columnId, operator, value } = filter;
+                const jsonPath = `jsonb_extract_path_text(data, '${columnId}')`;
+                
+                switch (operator) {
+                    case "contains":
+                        if (value) {
+                            whereConditions.push(`${jsonPath} ILIKE '%${value}%'`);
+                        }
+                        break;
+                    case "not_contains":
+                        if (value) {
+                            whereConditions.push(`(${jsonPath} IS NULL OR ${jsonPath} NOT ILIKE '%${value}%')`);
+                        }
+                        break;
+                    case "equals":
+                        whereConditions.push(`${jsonPath} = '${value}'`);
+                        break;
+                    case "not_equals":
+                        whereConditions.push(`(${jsonPath} IS NULL OR ${jsonPath} != '${value}')`);
+                        break;
+                    case "is_empty":
+                        whereConditions.push(`(${jsonPath} IS NULL OR ${jsonPath} = '')`);
+                        break;
+                    case "is_not_empty":
+                        whereConditions.push(`${jsonPath} IS NOT NULL AND ${jsonPath} != ''`);
+                        break;
+                    case "gt":
+                        if (value) {
+                            whereConditions.push(`(${jsonPath})::numeric > ${parseFloat(value)}`);
+                        }
+                        break;
+                    case "lt":
+                        if (value) {
+                            whereConditions.push(`(${jsonPath})::numeric < ${parseFloat(value)}`);
+                        }
+                        break;
+                }
+            }
+            
+            if (search) {
+                whereConditions.push(`EXISTS (
+                    SELECT 1 FROM jsonb_each_text(data) AS kv
+                    WHERE kv.value ILIKE '%${search}%'
+                )`);
+            }
 
-            const [columns, rows] = await Promise.all([
-                ctx.db.column.findMany({
-                    where: { tableId: input.tableId },
-                    orderBy: { order: "asc" },
-                    select: {
-                        id:     true,
-                        name:   true,
-                        type:   true,
-                        order:  true,
-                        config: true,
-                    },
-                }),
-                ctx.db.row.findMany({
-                    where: {
-                        tableId: input.tableId,
-                        ...(andConditions.length > 0 && { AND: andConditions }),
-                    },
-                    orderBy: { order: "asc" },
-                    select: {
-                        id:    true,
-                        order: true,
-                        cells: {
-                            select: {
-                                columnId: true,
-                                value:    true,
-                            },
-                        },
-                    },
-                }),
-            ]);
+            const whereClause = whereConditions.join(' AND ');
 
-            // Apply sorts in DB (groups first, then view sorts)
+            // Apply sorts (groups first, then view sorts)
             const sortOrder = [
                 ...viewGroups.map((g) => ({ columnId: g.columnId, direction: g.direction })),
                 ...viewSorts.map((s) => ({ columnId: s.columnId, direction: s.direction })),
             ];
-            if (sortOrder.length > 0 && rows.length > 0) {
-                const rowIds = rows.map((r) => r.id);
-                const sortedIds = await getSortedRowIds(ctx.db, rowIds, sortOrder);
-                const idToIndex = new Map(sortedIds.map((r, i) => [r.id, i]));
-                rows.sort(
-                    (a, b) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0),
-                );
+            
+            // Build ORDER BY clause
+            let orderByClause: string;
+            if (sortOrder.length === 0) {
+                orderByClause = '"order" ASC';
+            } else {
+                const orderParts: string[] = [];
+                for (const sort of sortOrder) {
+                    const dir = sort.direction === "desc" ? "DESC" : "ASC";
+                    // Numeric sorting with fallback
+                    orderParts.push(
+                        `COALESCE(
+                            CASE WHEN jsonb_extract_path_text(data, '${sort.columnId}') ~ '^-?[0-9]+\\.?[0-9]*$'
+                            THEN (jsonb_extract_path_text(data, '${sort.columnId}'))::numeric
+                            END, 0
+                        ) ${dir} NULLS LAST`
+                    );
+                    orderParts.push(`jsonb_extract_path_text(data, '${sort.columnId}') ${dir} NULLS LAST`);
+                }
+                orderParts.push('"order" ASC');
+                orderByClause = orderParts.join(', ');
             }
+
+            // Query rows with JSONB data using $queryRawUnsafe
+            const rows = await ctx.db.$queryRawUnsafe<
+                Array<{ id: string; order: number; data: Record<string, unknown> | null }>
+            >(
+                `SELECT id, "order", data FROM "Row" WHERE ${whereClause} ORDER BY ${orderByClause}`
+            );
+
+            // Transform JSONB data back to cells format for compatibility
+            const transformedRows = rows.map(row => ({
+                id: row.id,
+                order: row.order,
+                cells: Object.entries(row.data ?? {}).map(([columnId, value]) => ({
+                    columnId,
+                    value: value as string | null,
+                })),
+            }));
 
             return {
                 columns,
-                rows,
+                rows: transformedRows,
                 groups: viewGroups,
                 hiddenColumnIds,
                 filters: viewFilters.map((f) => ({

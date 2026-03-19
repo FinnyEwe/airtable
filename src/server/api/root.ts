@@ -6,6 +6,7 @@ import { viewRouter } from "~/server/api/routers/view";
 import { columnRouter } from "~/server/api/routers/column";
 import { rowRouter } from "~/server/api/routers/row";
 import { cellRouter } from "~/server/api/routers/cell";
+import { recordRouter } from "~/server/api/routers/record";
 
 /**
  * This is the primary router for your server.
@@ -20,6 +21,7 @@ export const appRouter = createTRPCRouter({
     column: columnRouter,
     row: rowRouter,
     cell: cellRouter,
+    record: recordRouter,
 });
 
 // export type definition of API

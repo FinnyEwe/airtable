@@ -11,21 +11,13 @@ export const cellRouter = createTRPCRouter({
   update: protectedProcedure
     .input(updateCellSchema)
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.cell.upsert({
-        where: {
-          rowId_columnId: {
-            rowId: input.rowId,
-            columnId: input.columnId,
-          },
-        },
-        update: {
-          value: input.value,
-        },
-        create: {
-          rowId: input.rowId,
-          columnId: input.columnId,
-          value: input.value,
-        },
-      });
+      // Update the JSONB data column by merging the new value
+      await ctx.db.$executeRaw`
+        UPDATE "Row"
+        SET data = COALESCE(data, '{}'::jsonb) || jsonb_build_object(${input.columnId}, ${input.value})
+        WHERE id = ${input.rowId}
+      `;
+      
+      return { success: true };
     }),
 });

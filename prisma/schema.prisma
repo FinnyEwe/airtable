@@ -95,6 +95,7 @@ model Column {
 model Row {
     id          String   @id @default(cuid())
     order       Int      @default(0)
+    data        Json?    @db.JsonB
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
     tableId     String
@@ -102,13 +103,14 @@ model Row {
     cells       Cell[]
 
     @@unique([tableId, order])
+    @@index([data], type: Gin)
+    @@index([tableId])
 }
 
 model Cell {
     id        String   @id @default(cuid())
     value     String?
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+     updatedAt DateTime @updatedAt
     rowId     String
     row       Row      @relation(fields: [rowId], references: [id], onDelete: Cascade)
     columnId  String

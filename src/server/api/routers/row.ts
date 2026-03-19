@@ -12,7 +12,7 @@ const deleteRowSchema = z.object({
 
 const bulkInsertSchema = z.object({
   tableId: z.string().cuid(),
-  count: z.number().int().min(1).max(10000),
+  count: z.number().int().min(1).max(100000),
 });
 
 const clearAllSchema = z.object({
@@ -35,6 +35,7 @@ export const rowRouter = createTRPCRouter({
         data: {
           order: nextOrder,
           tableId: input.tableId,
+          data: {},
         },
       });
     }),
@@ -93,28 +94,22 @@ export const rowRouter = createTRPCRouter({
 
       for (let batch = 0; batch < Math.ceil(input.count / batchSize); batch++) {
         const rowsInBatch = Math.min(batchSize, input.count - totalInserted);
-        const rowsData = Array.from({ length: rowsInBatch }, (_, i) => ({
-          order: startOrder + totalInserted + i,
-          tableId: input.tableId,
-        }));
-
-        const createdRows = await ctx.db.row.createManyAndReturn({
-          data: rowsData,
+        
+        const rowsData = Array.from({ length: rowsInBatch }, (_, i) => {
+          const rowData: Record<string, string> = {};
+          for (const col of columns) {
+            rowData[col.id] = generateValueForType(col.type);
+          }
+          return {
+            order: startOrder + totalInserted + i,
+            tableId: input.tableId,
+            data: rowData,
+          };
         });
 
-        const cellsData = createdRows.flatMap((row) =>
-          columns.map((col) => ({
-            rowId: row.id,
-            columnId: col.id,
-            value: generateValueForType(col.type),
-          }))
-        );
-
-        if (cellsData.length > 0) {
-          await ctx.db.cell.createMany({
-            data: cellsData,
-          });
-        }
+        await ctx.db.row.createMany({
+          data: rowsData,
+        });
 
         totalInserted += rowsInBatch;
       }

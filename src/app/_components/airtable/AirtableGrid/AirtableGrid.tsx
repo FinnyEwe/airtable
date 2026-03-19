@@ -9,10 +9,10 @@ import { useKeyboardNavigation } from "./useKeyboardNavigation";
 import { useCellSelection } from "./useCellSelection";
 import { GridRowContext } from "./useGridRowContext";
 import { GridCellContext } from "./useGridCellContext";
-import { useTableData } from "./useTableData";
+import { useRecordData } from "./useRecordData";
 import { useGridState } from "./useGridState";
 import { useGridColumns } from "./useGridColumns";
-import { GridTable } from "./GridTable";
+import { VirtualizedGridTable, type VirtualizedGridTableHandle } from "./VirtualizedGridTable";
 import { GridToolbar } from "./GridToolbar";
 
 export function AirtableGrid({
@@ -25,12 +25,16 @@ export function AirtableGrid({
   searchQuery?: string;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
+  const virtualizerRef = useRef<VirtualizedGridTableHandle>(null);
 
-  const { data, isLoading, mutations } = useTableData({
-    tableId,
-    viewId,
-    searchQuery,
-  });
+  const {
+    selectedCell,
+    editingCell,
+    handleCellClick,
+    handleCellDoubleClick,
+    setSelectedCell,
+    setEditingCell,
+  } = useCellSelection(gridRef);
 
   const {
     selectedRows,
@@ -46,14 +50,14 @@ export function AirtableGrid({
     handleRowContextMenu,
   } = useGridState();
 
-  const {
-    selectedCell,
-    editingCell,
-    handleCellClick,
-    handleCellDoubleClick,
+  const { data, isLoading, totalCount, hasNextPage, isFetchingNextPage, mutations } = useRecordData({
+    tableId,
+    viewId,
+    searchQuery,
+    virtualizer: virtualizerRef.current?.virtualizer,
     setSelectedCell,
     setEditingCell,
-  } = useCellSelection(gridRef);
+  });
 
   const handleSelectAll = useCallback(() => {
     if (!data) return;
@@ -120,7 +124,7 @@ export function AirtableGrid({
     if (!tableId) return;
     mutations.bulkInsert.mutate({
       tableId,
-      count: 10000,
+      count: 100000,
     });
   };
 
@@ -163,7 +167,7 @@ export function AirtableGrid({
     selectedRows,
     onRowSelect: handleRowSelect,
     onRowContextMenu: handleRowContextMenu,
-  }), [dataColumns, tableData, selectedRows, handleRowSelect]);
+  }), [dataColumns, tableData, selectedRows, handleRowSelect, handleRowContextMenu]);
 
   const gridCellContextValue = useMemo(() => ({
     selectedCell,
@@ -193,7 +197,8 @@ export function AirtableGrid({
           tabIndex={0}
           className="flex flex-1 flex-col overflow-hidden bg-white outline-none"
         >
-          <GridTable
+          <VirtualizedGridTable
+            ref={virtualizerRef}
             table={table}
             displayItems={displayItems}
             dataColumns={dataColumns}
@@ -202,6 +207,7 @@ export function AirtableGrid({
             onAddRow={handleAddRow}
             onAddColumn={handleAddColumn}
             onColumnContextMenu={handleColumnContextMenu}
+            totalCount={totalCount}
           />
 
           <ColumnContextMenu
@@ -226,8 +232,15 @@ export function AirtableGrid({
             onAddRow={handleAddRow}
             onBulkInsert={handleBulkInsert}
             onClearAll={handleClearAll}
-            recordCount={data?.rows.length ?? 0}
+            recordCount={totalCount ?? data?.rows.length ?? 0}
+            isBulkInserting={mutations.bulkInsert.isPending}
           />
+          
+          {isFetchingNextPage && (
+            <div className="fixed bottom-4 right-4 rounded bg-blue-500 px-3 py-1 text-xs text-white shadow-lg">
+              Loading more rows...
+            </div>
+          )}
         </div>
       </GridCellContext.Provider>
     </GridRowContext.Provider>

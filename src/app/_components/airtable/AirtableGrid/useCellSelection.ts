@@ -6,8 +6,8 @@ interface UseCellSelectionReturn {
   editingCell: CellPosition | null;
   handleCellClick: (rowId: string, columnId: string) => void;
   handleCellDoubleClick: (rowId: string, columnId: string) => void;
-  setSelectedCell: (position: CellPosition | null) => void;
-  setEditingCell: (position: CellPosition | null) => void;
+  setSelectedCell: React.Dispatch<React.SetStateAction<CellPosition | null>>;
+  setEditingCell: React.Dispatch<React.SetStateAction<CellPosition | null>>;
 }
 
 export function useCellSelection(
