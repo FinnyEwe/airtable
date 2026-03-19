@@ -27,25 +27,25 @@ async function main() {
   });
 
   const [tblTasks, tblTeam] = await Promise.all([
-    prisma.table.create({ data: { name: "Tasks", order: 0, baseId: baseProject.id, createdById: user.id } }),
-    prisma.table.create({ data: { name: "Team",  order: 1, baseId: baseProject.id, createdById: user.id } }),
+    prisma.table.create({ data: { name: "Tasks", order: 0, baseId: baseProject.id } }),
+    prisma.table.create({ data: { name: "Team",  order: 1, baseId: baseProject.id } }),
   ]);
 
   // Tasks columns
   const [colTasksTitle, colTasksStatus, colTasksAssignee, colTasksDue, colTasksPriority] = await Promise.all([
-    prisma.column.create({ data: { name: "Title",    type: "text",   order: 0, tableId: tblTasks.id, createdById: user.id } }),
-    prisma.column.create({ data: { name: "Status",   type: "select", order: 1, tableId: tblTasks.id, createdById: user.id, config: JSON.stringify({ options: ["Todo", "In Progress", "In Review", "Done"] }) } }),
-    prisma.column.create({ data: { name: "Assignee", type: "text",   order: 2, tableId: tblTasks.id, createdById: user.id } }),
-    prisma.column.create({ data: { name: "Due Date", type: "date",   order: 3, tableId: tblTasks.id, createdById: user.id } }),
-    prisma.column.create({ data: { name: "Priority", type: "select", order: 4, tableId: tblTasks.id, createdById: user.id, config: JSON.stringify({ options: ["Low", "Medium", "High", "Critical"] }) } }),
+    prisma.column.create({ data: { name: "Title",    type: "text",   order: 0, tableId: tblTasks.id } }),
+    prisma.column.create({ data: { name: "Status",   type: "select", order: 1, tableId: tblTasks.id, config: JSON.stringify({ options: ["Todo", "In Progress", "In Review", "Done"] }) } }),
+    prisma.column.create({ data: { name: "Assignee", type: "text",   order: 2, tableId: tblTasks.id } }),
+    prisma.column.create({ data: { name: "Due Date", type: "date",   order: 3, tableId: tblTasks.id } }),
+    prisma.column.create({ data: { name: "Priority", type: "select", order: 4, tableId: tblTasks.id, config: JSON.stringify({ options: ["Low", "Medium", "High", "Critical"] }) } }),
   ]);
 
   // Tasks views
   const [viewAllTasks, , viewActiveTasks] = await Promise.all([
-    prisma.view.create({ data: { name: "All Tasks",    type: "grid",   order: 0, tableId: tblTasks.id, createdById: user.id } }),
-    prisma.view.create({ data: { name: "Kanban Board", type: "kanban", order: 1, tableId: tblTasks.id, createdById: user.id, config: JSON.stringify({ groupBy: colTasksStatus.id }) } }),
-    prisma.view.create({ data: { name: "Active Tasks", type: "grid",   order: 2, tableId: tblTasks.id, createdById: user.id, searchQuery: "" } }),
-    prisma.view.create({ data: { name: "My Tasks",     type: "grid",   order: 3, tableId: tblTasks.id, createdById: user.id, searchQuery: "Alice" } }),
+    prisma.view.create({ data: { name: "All Tasks",    type: "grid",   order: 0, tableId: tblTasks.id } }),
+    prisma.view.create({ data: { name: "Kanban Board", type: "kanban", order: 1, tableId: tblTasks.id, config: JSON.stringify({ groupBy: colTasksStatus.id }) } }),
+    prisma.view.create({ data: { name: "Active Tasks", type: "grid",   order: 2, tableId: tblTasks.id, searchQuery: "" } }),
+    prisma.view.create({ data: { name: "My Tasks",     type: "grid",   order: 3, tableId: tblTasks.id, searchQuery: "Alice" } }),
   ]);
 
   // All Tasks: sort by Due Date asc (primary), Priority desc (secondary)
@@ -74,7 +74,7 @@ async function main() {
   ];
 
   for (const [i, d] of taskData.entries()) {
-    const row = await prisma.row.create({ data: { order: i, tableId: tblTasks.id, createdById: user.id } });
+    const row = await prisma.row.create({ data: { order: i, tableId: tblTasks.id } });
     await Promise.all([
       prisma.cell.create({ data: { rowId: row.id, columnId: colTasksTitle.id,    value: d.title    } }),
       prisma.cell.create({ data: { rowId: row.id, columnId: colTasksStatus.id,   value: d.status   } }),
@@ -86,16 +86,16 @@ async function main() {
 
   // Team columns
   const [colTeamName, colTeamRole, colTeamEmail, colTeamDept] = await Promise.all([
-    prisma.column.create({ data: { name: "Name",       type: "text",   order: 0, tableId: tblTeam.id, createdById: user.id } }),
-    prisma.column.create({ data: { name: "Role",       type: "text",   order: 1, tableId: tblTeam.id, createdById: user.id } }),
-    prisma.column.create({ data: { name: "Email",      type: "email",  order: 2, tableId: tblTeam.id, createdById: user.id } }),
-    prisma.column.create({ data: { name: "Department", type: "select", order: 3, tableId: tblTeam.id, createdById: user.id, config: JSON.stringify({ options: ["Engineering", "Design", "Product", "Marketing"] }) } }),
+    prisma.column.create({ data: { name: "Name",       type: "text",   order: 0, tableId: tblTeam.id } }),
+    prisma.column.create({ data: { name: "Role",       type: "text",   order: 1, tableId: tblTeam.id } }),
+    prisma.column.create({ data: { name: "Email",      type: "email",  order: 2, tableId: tblTeam.id } }),
+    prisma.column.create({ data: { name: "Department", type: "select", order: 3, tableId: tblTeam.id, config: JSON.stringify({ options: ["Engineering", "Design", "Product", "Marketing"] }) } }),
   ]);
 
   // Team views
   const [viewAllMembers, viewEngineering] = await Promise.all([
-    prisma.view.create({ data: { name: "All Members",  type: "grid", order: 0, tableId: tblTeam.id, createdById: user.id } }),
-    prisma.view.create({ data: { name: "Engineering",  type: "grid", order: 1, tableId: tblTeam.id, createdById: user.id } }),
+    prisma.view.create({ data: { name: "All Members",  type: "grid", order: 0, tableId: tblTeam.id } }),
+    prisma.view.create({ data: { name: "Engineering",  type: "grid", order: 1, tableId: tblTeam.id } }),
   ]);
 
   // All Members: sort by Name asc
@@ -115,7 +115,7 @@ async function main() {
   ];
 
   for (const [i, d] of teamData.entries()) {
-    const row = await prisma.row.create({ data: { order: i, tableId: tblTeam.id, createdById: user.id } });
+    const row = await prisma.row.create({ data: { order: i, tableId: tblTeam.id } });
     await Promise.all([
       prisma.cell.create({ data: { rowId: row.id, columnId: colTeamName.id,  value: d.name  } }),
       prisma.cell.create({ data: { rowId: row.id, columnId: colTeamRole.id,  value: d.role  } }),
@@ -131,24 +131,24 @@ async function main() {
   });
 
   const tblPosts = await prisma.table.create({
-    data: { name: "Posts", order: 0, baseId: baseContent.id, createdById: user.id },
+    data: { name: "Posts", order: 0, baseId: baseContent.id },
   });
 
   const [colPostsTitle, colPostsPlatform, colPostsStage, colPostsDate, colPostsAuthor] = await Promise.all([
-    prisma.column.create({ data: { name: "Title",        type: "text",   order: 0, tableId: tblPosts.id, createdById: user.id } }),
-    prisma.column.create({ data: { name: "Platform",     type: "select", order: 1, tableId: tblPosts.id, createdById: user.id, config: JSON.stringify({ options: ["Twitter", "LinkedIn", "Blog", "Instagram"] }) } }),
-    prisma.column.create({ data: { name: "Stage",        type: "select", order: 2, tableId: tblPosts.id, createdById: user.id, config: JSON.stringify({ options: ["Idea", "Draft", "Review", "Scheduled", "Published"] }) } }),
-    prisma.column.create({ data: { name: "Publish Date", type: "date",   order: 3, tableId: tblPosts.id, createdById: user.id } }),
-    prisma.column.create({ data: { name: "Author",       type: "text",   order: 4, tableId: tblPosts.id, createdById: user.id } }),
+    prisma.column.create({ data: { name: "Title",        type: "text",   order: 0, tableId: tblPosts.id } }),
+    prisma.column.create({ data: { name: "Platform",     type: "select", order: 1, tableId: tblPosts.id, config: JSON.stringify({ options: ["Twitter", "LinkedIn", "Blog", "Instagram"] }) } }),
+    prisma.column.create({ data: { name: "Stage",        type: "select", order: 2, tableId: tblPosts.id, config: JSON.stringify({ options: ["Idea", "Draft", "Review", "Scheduled", "Published"] }) } }),
+    prisma.column.create({ data: { name: "Publish Date", type: "date",   order: 3, tableId: tblPosts.id } }),
+    prisma.column.create({ data: { name: "Author",       type: "text",   order: 4, tableId: tblPosts.id } }),
   ]);
 
   // Posts views
   const [viewAllPosts, , , viewPublished] = await Promise.all([
-    prisma.view.create({ data: { name: "All Posts", type: "grid",     order: 0, tableId: tblPosts.id, createdById: user.id } }),
-    prisma.view.create({ data: { name: "Calendar",  type: "calendar", order: 1, tableId: tblPosts.id, createdById: user.id } }),
-    prisma.view.create({ data: { name: "By Stage",  type: "kanban",   order: 2, tableId: tblPosts.id, createdById: user.id, config: JSON.stringify({ groupBy: colPostsStage.id }) } }),
-    prisma.view.create({ data: { name: "Published", type: "grid",     order: 3, tableId: tblPosts.id, createdById: user.id } }),
-    prisma.view.create({ data: { name: "Blog Posts", type: "grid",    order: 4, tableId: tblPosts.id, createdById: user.id, searchQuery: "blog" } }),
+    prisma.view.create({ data: { name: "All Posts", type: "grid",     order: 0, tableId: tblPosts.id } }),
+    prisma.view.create({ data: { name: "Calendar",  type: "calendar", order: 1, tableId: tblPosts.id } }),
+    prisma.view.create({ data: { name: "By Stage",  type: "kanban",   order: 2, tableId: tblPosts.id, config: JSON.stringify({ groupBy: colPostsStage.id }) } }),
+    prisma.view.create({ data: { name: "Published", type: "grid",     order: 3, tableId: tblPosts.id } }),
+    prisma.view.create({ data: { name: "Blog Posts", type: "grid",    order: 4, tableId: tblPosts.id, searchQuery: "blog" } }),
   ]);
 
   // All Posts: sort by Publish Date asc
@@ -172,7 +172,7 @@ async function main() {
   ];
 
   for (const [i, d] of postsData.entries()) {
-    const row = await prisma.row.create({ data: { order: i, tableId: tblPosts.id, createdById: user.id } });
+    const row = await prisma.row.create({ data: { order: i, tableId: tblPosts.id } });
     await Promise.all([
       prisma.cell.create({ data: { rowId: row.id, columnId: colPostsTitle.id,    value: d.title    } }),
       prisma.cell.create({ data: { rowId: row.id, columnId: colPostsPlatform.id, value: d.platform } }),
