@@ -9,6 +9,8 @@ interface EditableCellProps {
   columnId: string;
   value: unknown;
   isNumber: boolean;
+  isSorted?: boolean;
+  isFiltered?: boolean;
 }
 
 export function EditableCell({
@@ -16,6 +18,8 @@ export function EditableCell({
   columnId,
   value,
   isNumber,
+  isSorted = false,
+  isFiltered = false,
 }: EditableCellProps) {
   const { selectedCell, editingCell, onCellClick, onCellDoubleClick, onCellUpdate, onCancelEdit } = useGridCellContext();
   const searchContext = useSearchContext();
@@ -35,7 +39,10 @@ export function EditableCell({
   if (isEditing) {
     return (
       <td
-        className="h-[32px] border-b border-r border-gray-200 p-0 text-[13px] text-gray-700"
+        className={[
+          "h-[32px] border-b border-r border-gray-200 p-0 text-[13px] text-gray-700",
+          isFiltered ? "bg-[#D0F0C0]" : isSorted ? "bg-[#FFDDC1]" : "",
+        ].join(" ")}
       >
         <input
           ref={inputRef}
@@ -77,7 +84,13 @@ export function EditableCell({
       className={[
         "h-[32px] border-b border-r border-gray-200 px-2 text-[13px] text-gray-700 cursor-pointer",
         isNumber ? "text-right" : "text-left",
-        isSelected ? "ring-2 ring-inset ring-blue-500 bg-white" : "hover:bg-gray-50",
+        isSelected 
+          ? "ring-2 ring-inset ring-blue-500 bg-white" 
+          : isFiltered
+            ? "bg-[#D0F0C0] hover:bg-[#c5e5b5]"
+            : isSorted 
+              ? "bg-[#FFDDC1] hover:bg-[#ffd4b3]" 
+              : "hover:bg-gray-50",
       ].join(" ")}
     >
       {content}

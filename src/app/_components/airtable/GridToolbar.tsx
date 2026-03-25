@@ -21,6 +21,7 @@ import { FilterDropdown } from "./FilterDropdown/FilterDropdown";
 import { SortDropdown } from "./SortDropdown/SortDropdown";
 import { Dropdown } from "~/app/_components/ui/Dropdown";
 import { useSearchContext } from "./AirtableGrid/SearchContext";
+import { api } from "~/trpc/react";
 
 const toolbarButtons = [
   { icon: <EyeOffIcon />, label: "Hide fields", key: "hide" },
@@ -50,6 +51,54 @@ export function GridToolbar({ tableId, viewId }: GridToolbarProps) {
   const searchButtonRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  const { data: viewData } = api.view.getById.useQuery(
+    { viewId: viewId! },
+    { enabled: !!viewId }
+  );
+
+  const { data: tableData } = api.tableData.getTableData.useQuery(
+    { tableId: tableId!, viewId },
+    { enabled: !!tableId }
+  );
+
+  const columns = tableData?.columns ?? [];
+  const getColumnName = (columnId: string) => {
+    return columns.find((c) => c.id === columnId)?.name ?? "Unknown";
+  };
+
+  const sortCount = viewData?.sorts?.length ?? 0;
+  const hasSorts = sortCount > 0;
+  const filterCount = viewData?.filters?.length ?? 0;
+  const hasFilters = filterCount > 0;
+
+  const getFilterButtonText = () => {
+    if (!hasFilters) return "Filter";
+    const filterColumnIds = viewData!.filters!.map((f) => f.columnId);
+    
+    if (filterCount === 1) {
+      return `Filtered by ${getColumnName(filterColumnIds[0]!)}`;
+    } else if (filterCount === 2) {
+      return `Filtered by ${getColumnName(filterColumnIds[0]!)}, ${getColumnName(filterColumnIds[1]!)}`;
+    } else {
+      const remaining = filterCount - 1;
+      return `Filtered by ${getColumnName(filterColumnIds[0]!)} and ${remaining} other field${remaining > 1 ? "s" : ""}`;
+    }
+  };
+
+  const getSortButtonText = () => {
+    if (!hasSorts) return "Sort";
+    const sortColumnIds = viewData!.sorts!.map((s) => s.columnId);
+    
+    if (sortCount === 1) {
+      return `Sorted by ${getColumnName(sortColumnIds[0]!)}`;
+    } else if (sortCount === 2) {
+      return `Sorted by ${getColumnName(sortColumnIds[0]!)}, ${getColumnName(sortColumnIds[1]!)}`;
+    } else {
+      const remaining = sortCount - 1;
+      return `Sorted by ${getColumnName(sortColumnIds[0]!)} and ${remaining} other field${remaining > 1 ? "s" : ""}`;
+    }
+  };
+
   useEffect(() => {
     if (isSearchDropdownOpen) {
       searchInputRef.current?.focus();
@@ -75,44 +124,61 @@ export function GridToolbar({ tableId, viewId }: GridToolbarProps) {
 
       {/* Toolbar buttons */}
       <div className="flex items-center gap-0.5">
-        {toolbarButtons.map(({ icon, label, key }) => (
-          <button
-            key={key}
-            ref={
-              key === "group"
-                ? groupButtonRef
-                : key === "hide"
-                  ? hideColumnsButtonRef
-                  : key === "filter"
-                    ? filterButtonRef
-                    : key === "sort"
-                      ? sortButtonRef
-                      : undefined
-            }
-            onClick={
-              key === "group" && tableId
-                ? () => setGroupDropdownOpen((v) => !v)
-                : key === "hide" && tableId
-                  ? () => setHideColumnsDropdownOpen((v) => !v)
-                  : key === "filter" && tableId
-                    ? () => setFilterDropdownOpen((v) => !v)
-                    : key === "sort" && tableId
-                      ? () => setSortDropdownOpen((v) => !v)
-                      : undefined
-            }
-            className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 ${
-              (key === "group" && groupDropdownOpen) ||
-              (key === "hide" && hideColumnsDropdownOpen) ||
-              (key === "filter" && filterDropdownOpen) ||
-              (key === "sort" && sortDropdownOpen)
-                ? "bg-gray-100"
-                : ""
-            }`}
-          >
-            {icon}
-            {label && <span>{label}</span>}
-          </button>
-        ))}
+        {toolbarButtons.map(({ icon, label, key }) => {
+          const isSortButton = key === "sort";
+          const isFilterButton = key === "filter";
+          const isActive = 
+            (key === "group" && groupDropdownOpen) ||
+            (key === "hide" && hideColumnsDropdownOpen) ||
+            (key === "filter" && filterDropdownOpen) ||
+            (key === "sort" && sortDropdownOpen);
+          
+          return (
+            <button
+              key={key}
+              ref={
+                key === "group"
+                  ? groupButtonRef
+                  : key === "hide"
+                    ? hideColumnsButtonRef
+                    : key === "filter"
+                      ? filterButtonRef
+                      : key === "sort"
+                        ? sortButtonRef
+                        : undefined
+              }
+              onClick={
+                key === "group" && tableId
+                  ? () => setGroupDropdownOpen((v) => !v)
+                  : key === "hide" && tableId
+                    ? () => setHideColumnsDropdownOpen((v) => !v)
+                    : key === "filter" && tableId
+                      ? () => setFilterDropdownOpen((v) => !v)
+                      : key === "sort" && tableId
+                        ? () => setSortDropdownOpen((v) => !v)
+                        : undefined
+              }
+              className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs ${
+                isSortButton && hasSorts
+                  ? "bg-[#FFDDC1] text-gray-700"
+                  : isFilterButton && hasFilters
+                    ? "bg-[#D0F0C0] text-gray-700"
+                    : isActive
+                      ? "bg-gray-100 text-gray-600"
+                      : "text-gray-600"
+              } hover:bg-gray-100`}
+            >
+              {icon}
+              {isSortButton && hasSorts ? (
+                <span>{getSortButtonText()}</span>
+              ) : isFilterButton && hasFilters ? (
+                <span>{getFilterButtonText()}</span>
+              ) : label ? (
+                <span>{label}</span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
 
       {tableId && (

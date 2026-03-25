@@ -10,7 +10,7 @@ interface GridDataRowProps {
 }
 
 export function GridDataRow({ row }: GridDataRowProps) {
-  const { dataColumns, tableData, selectedRows, onRowSelect, onRowContextMenu } = useGridRowContext();
+  const { dataColumns, tableData, selectedRows, onRowSelect, onRowContextMenu, sortedColumnIds, filteredColumnIds } = useGridRowContext();
   const { selectedCell, editingCell, onCellClick, onCellDoubleClick, onCellUpdate, onCancelEdit } = useGridCellContext();
   
   const rowIndex = tableData.findIndex((r) => r.id === row.id) + 1;
@@ -56,6 +56,8 @@ export function GridDataRow({ row }: GridDataRowProps) {
           columnId={col.id}
           value={row[col.id]}
           isNumber={col.type === "number"}
+          isSorted={sortedColumnIds?.has(col.id) ?? false}
+          isFiltered={filteredColumnIds?.has(col.id) ?? false}
         />
       ))}
       <td className="w-[48px] border-b-0 bg-white" />

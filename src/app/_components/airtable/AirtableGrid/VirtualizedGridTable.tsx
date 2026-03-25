@@ -26,6 +26,8 @@ interface VirtualizedGridTableProps {
     isFirstColumn: boolean,
   ) => void;
   totalCount?: number;
+  sortedColumnIds?: Set<string>;
+  filteredColumnIds?: Set<string>;
 }
 
 export interface VirtualizedGridTableHandle {
@@ -44,6 +46,8 @@ export const VirtualizedGridTable = forwardRef<VirtualizedGridTableHandle, Virtu
       onAddColumn,
       onColumnContextMenu,
       totalCount,
+      sortedColumnIds = new Set(),
+      filteredColumnIds = new Set(),
     },
     ref
   ) {
@@ -80,40 +84,46 @@ export const VirtualizedGridTable = forwardRef<VirtualizedGridTableHandle, Virtu
         <thead className="sticky top-0 z-20">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
-              {headerGroup.headers.map((header, idx) => (
-                <th
-                  key={header.id}
-                  className={[
-                    "h-[30px] border-b border-gray-200 bg-[#f8f8f8] px-2 text-left text-[12px] font-normal text-gray-600",
-                    idx === 0 ? "border-l-0" : "border-r",
-                    idx === 0
-                      ? "sticky z-10 bg-[#f8f8f8] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]"
-                      : "",
-                  ].join(" ")}
-                  style={{
-                    width: header.column.getSize(),
-                    ...(idx === 0 && { left: 0 }),
-                  }}
-                  onContextMenu={
-                    header.column.id !== "checkbox"
-                      ? (e) => {
-                          const col = dataColumns.find((c) => c.id === header.column.id);
-                          onColumnContextMenu(
-                            e,
-                            header.column.id,
-                            col?.type ?? "text",
-                            idx === 1,
-                          );
-                        }
-                      : undefined
-                  }
-                >
-                  {flexRender(
-                    header.column.columnDef.header,
-                    header.getContext(),
-                  )}
-                </th>
-              ))}
+              {headerGroup.headers.map((header, idx) => {
+                const isFiltered = header.column.id !== "checkbox" && filteredColumnIds.has(header.column.id);
+                const isSorted = header.column.id !== "checkbox" && sortedColumnIds.has(header.column.id);
+                const bgColor = isFiltered ? "bg-[#D0F0C0]" : isSorted ? "bg-[#FFDDC1]" : "bg-[#f8f8f8]";
+                
+                return (
+                  <th
+                    key={header.id}
+                    className={[
+                      `h-[30px] border-b border-gray-200 ${bgColor} px-2 text-left text-[12px] font-normal text-gray-600`,
+                      idx === 0 ? "border-l-0" : "border-r",
+                      idx === 0
+                        ? `sticky z-10 ${bgColor} shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`
+                        : "",
+                    ].join(" ")}
+                    style={{
+                      width: header.column.getSize(),
+                      ...(idx === 0 && { left: 0 }),
+                    }}
+                    onContextMenu={
+                      header.column.id !== "checkbox"
+                        ? (e) => {
+                            const col = dataColumns.find((c) => c.id === header.column.id);
+                            onColumnContextMenu(
+                              e,
+                              header.column.id,
+                              col?.type ?? "text",
+                              idx === 1,
+                            );
+                          }
+                        : undefined
+                    }
+                  >
+                    {flexRender(
+                      header.column.columnDef.header,
+                      header.getContext(),
+                    )}
+                  </th>
+                );
+              })}
               <th 
                 className="border-b border-r border-gray-200 bg-[#f8f8f8] px-2 text-center"
                 style={{ height: 30, width: COLUMN_WIDTHS.ADD_BUTTON }}

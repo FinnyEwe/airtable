@@ -71,6 +71,7 @@ export function useRecordData({
       enabled: !!tableId,
       getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
       staleTime: 60_000, // 60 seconds
+      placeholderData: (previousData) => previousData, // Keep previous data during refetch
     }
   );
 

@@ -12,6 +12,8 @@ interface UseGridColumnsProps {
   isAllSelected: boolean;
   isSomeSelected: boolean;
   onSelectAll: () => void;
+  sortedColumnIds: Set<string>;
+  filteredColumnIds: Set<string>;
 }
 
 export function useGridColumns({
@@ -19,6 +21,8 @@ export function useGridColumns({
   isAllSelected,
   isSomeSelected,
   onSelectAll,
+  sortedColumnIds,
+  filteredColumnIds,
 }: UseGridColumnsProps) {
   const columns = useMemo<ColumnDef<GridRow>[]>(() => {
     const checkboxCol: ColumnDef<GridRow> = {
@@ -66,7 +70,7 @@ export function useGridColumns({
     }));
 
     return [checkboxCol, ...dataCols];
-  }, [data, isAllSelected, isSomeSelected, onSelectAll]);
+  }, [data, isAllSelected, isSomeSelected, onSelectAll, sortedColumnIds, filteredColumnIds]);
 
   return { columns };
 }

@@ -16,6 +16,7 @@ import { VirtualizedGridTable, type VirtualizedGridTableHandle } from "./Virtual
 import { GridToolbar as GridFooterToolbar } from "./GridToolbar";
 import { GridToolbar as GridTopToolbar } from "../GridToolbar";
 import { SearchProvider } from "./SearchContext";
+import { api } from "~/trpc/react";
 
 export function AirtableGrid({
   tableId,
@@ -59,6 +60,19 @@ export function AirtableGrid({
     setSelectedCell,
     setEditingCell,
   });
+
+  const { data: viewData } = api.view.getById.useQuery(
+    { viewId: viewId! },
+    { enabled: !!viewId }
+  );
+
+  const sortedColumnIds = useMemo(() => {
+    return new Set(viewData?.sorts?.map((s) => s.columnId) ?? []);
+  }, [viewData?.sorts]);
+
+  const filteredColumnIds = useMemo(() => {
+    return new Set(viewData?.filters?.map((f) => f.columnId) ?? []);
+  }, [viewData?.filters]);
 
   const handleSelectAll = useCallback(() => {
     if (!data) return;
@@ -142,6 +156,8 @@ export function AirtableGrid({
     isAllSelected,
     isSomeSelected,
     onSelectAll: handleSelectAll,
+    sortedColumnIds,
+    filteredColumnIds,
   });
 
   const table = useReactTable({
@@ -168,7 +184,9 @@ export function AirtableGrid({
     selectedRows,
     onRowSelect: handleRowSelect,
     onRowContextMenu: handleRowContextMenu,
-  }), [dataColumns, tableData, selectedRows, handleRowSelect, handleRowContextMenu]);
+    sortedColumnIds,
+    filteredColumnIds,
+  }), [dataColumns, tableData, selectedRows, handleRowSelect, handleRowContextMenu, sortedColumnIds, filteredColumnIds]);
 
   const gridCellContextValue = useMemo(() => ({
     selectedCell,
@@ -213,6 +231,8 @@ export function AirtableGrid({
                 onAddColumn={handleAddColumn}
                 onColumnContextMenu={handleColumnContextMenu}
                 totalCount={totalCount}
+                sortedColumnIds={sortedColumnIds}
+                filteredColumnIds={filteredColumnIds}
               />
 
               <ColumnContextMenu

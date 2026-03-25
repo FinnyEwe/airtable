@@ -8,6 +8,8 @@ interface GridRowContextValue {
   selectedRows: Set<string>;
   onRowSelect: (rowId: string) => void;
   onRowContextMenu?: (e: React.MouseEvent<HTMLTableRowElement>, rowId: string) => void;
+  sortedColumnIds?: Set<string>;
+  filteredColumnIds?: Set<string>;
 }
 
 export const GridRowContext = createContext<GridRowContextValue | null>(null);
