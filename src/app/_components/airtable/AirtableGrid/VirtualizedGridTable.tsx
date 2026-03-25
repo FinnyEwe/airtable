@@ -163,7 +163,7 @@ export const VirtualizedGridTable = forwardRef<VirtualizedGridTableHandle, Virtu
                 />
               );
             }
-            return <GridDataRow key={item.row.id} row={item.row} />;
+            return <GridDataRow key={`${virtualRow.index}-${item.row.id}`} row={item.row} />;
           })}
 
           {/* Spacer for rows below viewport */}

@@ -8,9 +8,14 @@ const PAGE_SIZE = 5000;
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
+const cursorSchema = z.object({
+  order: z.number().int(),
+  sortValues: z.array(z.string().nullable()).optional(),
+});
+
 const listRecordsSchema = z.object({
   tableId: z.string().cuid(),
-  cursor: z.number().int().nullable().optional(),
+  cursor: cursorSchema.nullable().optional(),
   filters: z.array(z.object({
     columnId: z.string(),
     operator: z.string(),
@@ -155,15 +160,131 @@ function buildOrderSQL(
   return orderParts.join(', ');
 }
 
+/**
+ * Escape a string value for use in SQL literals.
+ * Prevents SQL injection by doubling single quotes.
+ */
+function escapeSqlString(val: string): string {
+  return val.replace(/'/g, "''");
+}
+
+/**
+ * Build a sort expression for a single column (used in both ORDER BY and cursor comparison).
+ * Returns the numeric-coalesced expression that matches the ORDER BY.
+ */
+function sortExpressionForColumn(columnId: string): { numeric: string; text: string } {
+  const jsonPath = `jsonb_extract_path_text(data, '${columnId}')`;
+  return {
+    numeric: `COALESCE(
+        CASE WHEN ${jsonPath} ~ '^-?[0-9]+\\.?[0-9]*$'
+          THEN (${jsonPath})::numeric
+        END,
+        0
+      )`,
+    text: jsonPath,
+  };
+}
+
+/**
+ * Build compound keyset cursor condition.
+ * For sorts [A ASC, B DESC] with tiebreaker "order" ASC, generates:
+ *   (A_num > cv_a_num) OR (A_num = cv_a_num AND A_text > cv_a_text) OR
+ *   (A_num = cv_a_num AND A_text = cv_a_text AND B_num < cv_b_num) OR ...
+ *   ... OR (all_equal AND "order" > cursorOrder)
+ */
+function buildCursorCondition(
+  sorts: SortInput[],
+  cursor: { order: number; sortValues?: (string | null)[] },
+): string {
+  if (sorts.length === 0) {
+    return `"order" > ${cursor.order}`;
+  }
+
+  const sortValues = cursor.sortValues ?? [];
+  const conditions: string[] = [];
+
+  // For each sort column level + the final "order" tiebreaker
+  // We build an OR of increasingly specific equality prefixes
+  // Each sort column produces TWO ORDER BY expressions (numeric, text),
+  // so each sort column level has two comparison steps.
+
+  // Flatten into a list of { expr, cursorVal, direction } entries
+  // matching the ORDER BY exactly: numericExpr ASC, textExpr ASC, ..., "order" ASC
+  const orderEntries: Array<{ expr: string; cursorLiteral: string; op: string }> = [];
+
+  for (let i = 0; i < sorts.length; i++) {
+    const sort = sorts[i]!;
+    if (!sort.columnId || !sort.direction) continue;
+
+    const { numeric, text } = sortExpressionForColumn(sort.columnId);
+    const rawValue = sortValues[i] ?? null;
+    const dir = sort.direction;
+    const gt = dir === "desc" ? "<" : ">";
+
+    // Numeric expression comparison
+    const numericCursorVal = rawValue !== null && /^-?[0-9]+\.?[0-9]*$/.test(rawValue)
+      ? rawValue
+      : "0";
+    orderEntries.push({ expr: numeric, cursorLiteral: numericCursorVal, op: gt });
+
+    // Text expression comparison
+    const textCursorVal = rawValue !== null ? `'${escapeSqlString(rawValue)}'` : "NULL";
+    if (rawValue === null) {
+      // NULL text values: for ASC nothing can be > NULL at the text level (NULLs LAST),
+      // so this level can only match equality (IS NULL). For DESC, NULLs LAST means NULL
+      // values are at the end, so nothing comes after.
+      orderEntries.push({ expr: text, cursorLiteral: "NULL", op: "IS_NULL_EQ" });
+    } else {
+      orderEntries.push({ expr: text, cursorLiteral: textCursorVal, op: gt });
+    }
+  }
+
+  // Final tiebreaker: "order" ASC
+  orderEntries.push({ expr: '"order"', cursorLiteral: String(cursor.order), op: ">" });
+
+  // Build OR conditions: for position k, all entries before k are equal, entry k is strictly greater
+  for (let k = 0; k < orderEntries.length; k++) {
+    const entry = orderEntries[k]!;
+    const eqParts: string[] = [];
+
+    for (let j = 0; j < k; j++) {
+      const prev = orderEntries[j]!;
+      if (prev.op === "IS_NULL_EQ") {
+        eqParts.push(`${prev.expr} IS NULL`);
+      } else {
+        eqParts.push(`${prev.expr} = ${prev.cursorLiteral}`);
+      }
+    }
+
+    let comparison: string;
+    if (entry.op === "IS_NULL_EQ") {
+      // This is a text-level NULL equality step; skip generating a "strictly greater" clause
+      // since nothing is > NULL in NULLS LAST ordering
+      continue;
+    } else {
+      comparison = `${entry.expr} ${entry.op} ${entry.cursorLiteral}`;
+    }
+
+    if (eqParts.length > 0) {
+      conditions.push(`(${eqParts.join(" AND ")} AND ${comparison})`);
+    } else {
+      conditions.push(`(${comparison})`);
+    }
+  }
+
+  return `(${conditions.join(" OR ")})`;
+}
+
 function buildWhereClause(
   tableId: string,
-  cursor: number | null | undefined,
+  cursor: { order: number; sortValues?: (string | null)[] } | null | undefined,
   filterConditions: string[],
+  sorts: SortInput[],
 ): string {
   const parts: string[] = [`"tableId" = '${tableId}'`];
 
   if (cursor !== null && cursor !== undefined) {
-    parts.push(`"order" > ${cursor}`);
+    parts.push(buildCursorCondition(sorts, cursor));
   }
 
   parts.push(...filterConditions);
@@ -182,6 +303,7 @@ export const recordRouter = createTRPCRouter({
   list: publicProcedure
     .input(listRecordsSchema)
     .query(async ({ ctx, input }) => {
+      const sorts = input.sorts ?? [];
       const filterConditions = buildFilterConditions(
         input.filters ?? [],
         input.search,
@@ -190,14 +312,21 @@ export const recordRouter = createTRPCRouter({
         input.tableId,
         input.cursor,
         filterConditions,
+        sorts,
       );
-      const orderSQL = buildOrderSQL(input.sorts ?? []);
+      const orderSQL = buildOrderSQL(sorts);
 
       // Only compute COUNT on first page
       let total: number | undefined;
       if (input.cursor === null || input.cursor === undefined) {
+        const countWhereClause = buildWhereClause(
+          input.tableId,
+          null,
+          filterConditions,
+          sorts,
+        );
         const countResult = await ctx.db.$queryRawUnsafe<[{ count: bigint }]>(
-          `SELECT COUNT(*)::bigint as count FROM "Row" WHERE ${whereClause}`
+          `SELECT COUNT(*)::bigint as count FROM "Row" WHERE ${countWhereClause}`
         );
         total = Number(countResult[0]?.count ?? 0);
       }
@@ -209,9 +338,19 @@ export const recordRouter = createTRPCRouter({
         `SELECT id, "order", data FROM "Row" WHERE ${whereClause} ORDER BY ${orderSQL} LIMIT ${PAGE_SIZE}`
       );
 
-      const nextCursor = records.length === PAGE_SIZE
-        ? records[records.length - 1]?.order
-        : undefined;
+      // Build compound cursor from the last record
+      let nextCursor: { order: number; sortValues: (string | null)[] } | undefined;
+      if (records.length === PAGE_SIZE) {
+        const lastRecord = records[records.length - 1]!;
+        const sortValues = sorts.map((s) => {
+          if (!s.columnId) return null;
+          const data = lastRecord.data as Record<string, unknown> | null;
+          if (!data) return null;
+          const val = data[s.columnId];
+          return val !== undefined && val !== null ? String(val) : null;
+        });
+        nextCursor = { order: lastRecord.order, sortValues };
+      }
 
       return {
         records: records.map(r => ({
@@ -238,6 +377,7 @@ export const recordRouter = createTRPCRouter({
         input.tableId,
         null,
         filterConditions,
+        [],
       );
 
       const result = await ctx.db.$queryRawUnsafe<[{ count: bigint }]>(
